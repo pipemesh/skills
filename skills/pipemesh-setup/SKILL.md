@@ -135,10 +135,11 @@ The rules that most often go wrong — they differ from other CI systems:
    your own jobs run in via `image_from:`. Hosted runners are **arm64**:
    what they build is arm64 unless cross-built — check the deploy
    target's architecture and ask if it's amd64.
-6. **Caches are per workload, and pull-request runs never save.** Key
-   on `${checksum:<lockfile>}`, keep paths inside the workspace. To warm
-   a PR-only workflow's cache, add a non-PR trigger whose run actually
-   executes the install (not a `skip: built` job that gets reused).
+6. **Pull-request runs never save caches; they restore what the
+   default-branch jobs saved with the same cache `paths:`.** Key on
+   `${checksum:<lockfile>}`, keep paths inside the workspace, and give
+   the PR job and the pipeline job that run the same install one shared
+   cache definition (`cache: !include .pipemesh/npm-cache.yaml`).
    Remote build caches (Nx Cloud, Turborepo, BuildBuddy) write from the
    default branch only.
 7. **Reuse with `!ref`, `!include` and components**, never YAML

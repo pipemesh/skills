@@ -67,7 +67,7 @@ or by folding the tests into the pipeline's build job.
 | --- | --- |
 | `actions/checkout` | nothing — jobs start in a checkout of the revision. `fetch-depth: 0` / `git merge-base` work on PR runs against `origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME` |
 | `actions/setup-node` / `setup-python` / `setup-go` / `setup-java` / `ruby/setup-ruby` | `image:` with that version (`node:22-bookworm`, `python:3.12-bookworm`, `golang:1.23-bookworm`, `gradle:8-jdk21`, `ruby:3.3-bookworm`); read `.nvmrc`/`node-version-file` for the version |
-| `cache: npm` / `pip` / `gradle` on a setup action, `actions/cache` | `cache:` keyed on the lockfile checksum, paths inside the workspace (artifacts-and-caching.md → Cache) |
+| `cache: npm` / `pip` / `gradle` on a setup action, `actions/cache` | `cache:` keyed on the lockfile checksum, paths inside the workspace, one definition shared by the PR and default-branch jobs (artifacts-and-caching.md → Cache) |
 | `pnpm/action-setup` | `corepack enable` in the script (or `setup: [{ uses: node/pnpm@1 }]`) |
 | `actions/upload-artifact` → `actions/download-artifact` | `produces:` on the producer → `consumes:` on the consumer |
 | `aws-actions/configure-aws-credentials` with `role-to-assume` | `setup: [{ uses: aws/role@1, with: { arn: …, region: … } }]`; the role's trust policy gains Pipemesh's issuer and subjects (onboarding.md §4) |
@@ -139,7 +139,6 @@ Only if the user chose delegation for a workflow:
   `produces: { <key>: file }` on the delegating job;
 - entries the run needs from Pipemesh (an image digest, a bundle) come
   from `- uses: pipemesh/consume@v1` with
-  `with: { pipemesh-url: https://pipemesh.io }` and
   `permissions: { id-token: write, contents: read }`, after the
   delegating job declares them in `consumes:`.
 

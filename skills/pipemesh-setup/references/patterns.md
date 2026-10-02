@@ -36,10 +36,7 @@ pipeline:
       image: node:22-bookworm
       paths: [src, package.json, package-lock.json, tsconfig.json]
       skip: built                       # a revert or a docs-only commit reuses the stored bundle
-      cache:
-        key: npm-${checksum:package-lock.json}
-        restore_keys: [npm-]
-        paths: [.npm]
+      cache: !include .pipemesh/npm-cache.yaml   # the same definition the PR checks use
       script: |
         npm ci --cache .npm --prefer-offline
         npm test
@@ -68,11 +65,14 @@ pipemesh:
   pipelines:
     pipeline: !ref pipeline
   workflows:
-    checks:
-      body: !ref checks
-      triggers:
-        pr:   { on: pull_request }
-        warm: { on: schedule, cron: "0 4 * * *" }   # PR runs only read the cache; this run fills it
+    checks: { body: !ref checks, on: pull_request }
+```
+
+```yaml
+# .pipemesh/npm-cache.yaml — one cache definition for every job that runs npm ci
+key: npm-${checksum:package-lock.json}
+restore_keys: [npm-]
+paths: [.npm]
 ```
 
 ```yaml
@@ -83,20 +83,14 @@ jobs:
   lint:
     stage: test
     image: node:22-bookworm
-    cache:
-      key: npm-${checksum:package-lock.json}
-      restore_keys: [npm-]
-      paths: [.npm]
+    cache: !include .pipemesh/npm-cache.yaml
     script: |
       npm ci --cache .npm --prefer-offline
       npm run lint
   test:
     stage: test
     image: node:22-bookworm
-    cache:
-      key: npm-${checksum:package-lock.json}
-      restore_keys: [npm-]
-      paths: [.npm]
+    cache: !include .pipemesh/npm-cache.yaml
     script: |
       npm ci --cache .npm --prefer-offline
       npm test
@@ -116,10 +110,9 @@ Why it is shaped like this:
   (`skip: unchanged`), which compares with *their own* last success.
 - PR checks are a separate workflow body: PRs never deploy, and the
   pipeline only sees the default branch.
-- Each workload has its own cache, and pull-request runs never save to
-  it — the nightly `warm` trigger on the same entry fills the cache the
-  PR runs restore (the checks jobs have no `skip: built`, so the warm
-  run executes them). Drop it if PR speed doesn't matter.
+- Pull-request runs never save caches; they restore what the pipeline's
+  `build` saved, because both include the same cache definition (same
+  key and `paths:`).
 
 ## 2. Container image built and deployed by digest
 
@@ -315,8 +308,8 @@ jobs:
   older `params.artifacts: [dist]` imports plain artifacts that flow
   along `needs:`.)
 - A dispatched Actions run fetches what the Pipemesh job consumes with
-  `- uses: pipemesh/consume@v1` + `with: { pipemesh-url: https://pipemesh.io }`
-  (the job declares `consumes:`; the workflow needs
+  `- uses: pipemesh/consume@v1` (the job declares `consumes:`; the
+  workflow needs
   `permissions: { id-token: write, contents: read }`); entries become
   `$PIPEMESH_<PATH>` variables in the run. Inside an Actions run, `uses: pipemesh/consume@v1` fetches
   what the Pipemesh job consumes (needs `permissions: id-token: write`),

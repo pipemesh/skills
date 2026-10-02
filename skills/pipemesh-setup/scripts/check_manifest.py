@@ -835,18 +835,34 @@ def check_delegate(jw, name, job, delegate, kind, repo):
 # ---------------------------------------------------------------------------
 # Registration
 
-def workflow_warnings(where, body, kinds):
+def cache_path_sets(body):
+    """(job name, sorted cache paths) for every cached job of a body and its delegated bodies."""
+    out = []
     if not isinstance(body, dict) or not isinstance(body.get("jobs"), dict):
-        return
-    jobs = body["jobs"]
-    cached = [j for j in jobs.values() if isinstance(j, dict) and j.get("cache")]
-    if kinds == {"pull_request"} and cached:
-        R.warn(where, "pull-request runs restore the cache but never save it, and this workflow only runs on pull "
-                      "requests — add a non-PR trigger to the same entry (e.g. warm: { on: schedule, cron: \"0 4 * * *\" }) "
-                      "whose run executes the install, or accept cold PR runs")
-    elif "pull_request" in kinds and len(kinds) > 1 and cached and all(j.get("skip") == "built" for j in cached):
-        R.warn(where, "every cached job has skip: built, so the non-PR run reuses stored results instead of running "
-                      "and saves no cache — give the warm-up a job without skip: built (see artifacts-and-caching.md → Cache)")
+        return out
+    for name, j in body["jobs"].items():
+        if not isinstance(j, dict):
+            continue
+        c = j.get("cache")
+        if isinstance(c, dict) and c.get("paths"):
+            out.append((name, tuple(sorted(str(x) for x in as_list(c["paths"])))))
+        d = j.get("delegate")
+        if isinstance(d, dict) and isinstance(d.get("params"), dict):
+            out.extend(cache_path_sets(d["params"].get("body")))
+    return out
+
+
+def pr_cache_warnings(registrations):
+    """A pull-request run never saves; it restores what another workload saved with the same paths."""
+    for where, body, kinds in registrations:
+        if kinds != {"pull_request"}:
+            continue
+        others = {paths for w2, b2, _ in registrations if w2 != where for _, paths in cache_path_sets(b2)}
+        for job, paths in cache_path_sets(body):
+            if paths not in others:
+                R.warn(f"{where}.jobs.{job}", f"cache paths {list(paths)}: pull-request runs never save, and no "
+                       "other workload in this manifest saves a cache with these paths, so this job always starts "
+                       "cold — share the cache definition with the default-branch job that runs the same install")
 
 
 def check_inputs(where, entry):
@@ -879,8 +895,7 @@ def check_trigger(where, trig, declared):
         if f in trig and on != kind:
             R.error(where, f"{f}: filters on: {kind} only")
     if on == "push" and "branches" in trig:
-        R.warn(where, "on: push only ever sees the default branch, and branches: is an exact match that can "
-                      "silently never fire — leave branches: out")
+        R.warn(where, "on: push only ever sees the default branch, so branches: adds nothing — leave it out")
     for t in as_list(trig.get("targets")):
         if any(ch in str(t) for ch in "*?["):
             R.warn(where, f"targets: '{t}' — target branches are exact names, not globs")
@@ -955,6 +970,7 @@ def main():
     if len(pipelines) > 1:
         R.error("pipemesh.pipelines", "supports one entry for now")
     names = set()
+    registrations = []
     for section, entries in (("pipelines", pipelines), ("workflows", workflows)):
         for name, entry in entries.items():
             name = str(name)
@@ -973,6 +989,8 @@ def main():
             kind = "pipeline" if section == "pipelines" else "workflow"
             if isinstance(entry, dict):
                 entry = bool_key_fix(entry, w, True)
+            if kind == "pipeline":
+                registrations.append((w, entry.get("body") if isinstance(entry, dict) and "body" in entry else entry, {"pipeline"}))
             if isinstance(entry, dict) and "body" in entry:
                 allowed = PIPELINE_ENTRY_KEYS if kind == "pipeline" else WORKFLOW_ENTRY_KEYS
                 for k in entry:
@@ -1013,7 +1031,7 @@ def main():
                     kinds = {t.get("on", t.get(True)) for t in entry["triggers"].values() if isinstance(t, dict)}
                 elif "on" in entry:
                     kinds = {entry["on"]}
-                workflow_warnings(w, entry.get("body"), kinds)
+                registrations.append((w, entry.get("body"), kinds))
                 declared = check_inputs(w, entry)
                 if "on" in entry and "triggers" in entry:
                     R.error(w, "on: and triggers: are mutually exclusive")
@@ -1030,6 +1048,7 @@ def main():
                     for k in ("branches", "targets", "tags", "cron"):
                         if k in entry:
                             R.error(w, f"{k}: without on:")
+    pr_cache_warnings(registrations)
     return finish()
 
 

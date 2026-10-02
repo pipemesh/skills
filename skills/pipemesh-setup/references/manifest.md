@@ -77,8 +77,8 @@ pipemesh:
 | `schedule` | `cron: "0 3 * * *"` | UTC; always quote the cron |
 | `manual` | — | explicit manual trigger (no `on:` at all is also manual-only) |
 
-Pushes to other branches never start runs, and a `branches:` filter
-is an exact match that can silently never fire — leave it out. A tag
+Pushes to other branches never start runs, so a `branches:` filter
+adds nothing — leave it out. A tag
 trigger fires for tags pushed after it is registered (existing tags are
 history). `on:` (one trigger) and `triggers:` (a named map of several)
 are mutually exclusive. Several triggers on one entry share one history:

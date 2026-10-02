@@ -85,20 +85,30 @@ nothing.
 
 Three cases; pick by who pulls the image.
 
-**Architecture first.** Pipemesh's hosted runners are **arm64**
-(Graviton). Every `image:` needs an arm64 variant (the official
-language images have one), and what a job builds — container images,
-native modules, prebuilt bundles with binaries — is arm64 unless you
-cross-build. When the deploy target is amd64 (most x86 clusters, many
-PaaS builders), ask the user which way to go: deploy to arm64
-(Graviton nodes, multi-arch images), cross-build with QEMU
-(`docker run --privileged --rm tonistiigi/binfmt --install amd64`, then
-`docker buildx build --platform linux/amd64 --push …`; say in the summary
-that the first run should confirm it works), run the build on their own
-amd64 runner (`tags:`), or keep the image build in GitHub Actions
-(`delegate: { type: github_actions }`). Platforms that build remotely
+**Architecture first.** Pipemesh's hosted runners are **Linux arm64**.
+Every `image:` needs an arm64 variant (the official language images
+have one), and what a job builds — `docker build` and `publish:`
+images, native modules `npm ci` compiles or downloads, prebuilt output
+such as `vercel build`'s — is arm64 unless the job asks for another
+platform. When the deploy target is amd64 (most x86 clusters, many PaaS
+runtimes), ask the user which way to go:
+
+- **Cross-compile** where the toolchain can (Go with `GOARCH`, a JVM
+  jar, a JS bundle): a `FROM --platform=$BUILDPLATFORM` build stage
+  compiles for the target, no emulation needed.
+- **Emulate**: `docker run --privileged --rm tonistiigi/binfmt --install amd64`,
+  then `docker buildx build --platform linux/amd64 --push --metadata-file meta.json …`
+  (several times slower for emulated `RUN` steps). For one tag with
+  both platforms, `docker buildx create --use` first and pass
+  `--platform linux/amd64,linux/arm64`.
+- **Deploy arm64** (Graviton nodes) and keep the native build.
+- **Build elsewhere**: an amd64 runner of their own (`tags:`), or keep
+  the image build in GitHub Actions (`delegate: { type: github_actions }`).
+
+`publish:` always builds arm64. Platforms that build remotely
 (`flyctl deploy --remote-only`, `vercel deploy` without `--prebuilt`)
-are unaffected.
+are unaffected. Details: pipemesh.io/docs/hosted-runners → *Building
+for amd64*.
 
 **1. An image your cluster or platform deploys** (ECR, GHCR, Docker
 Hub, GAR): build and push in the script, then declare it as an `oci`
@@ -203,8 +213,10 @@ cache:
   `none` if missing) is the only interpolation; it may appear several
   times. No `$VARIABLES` in keys. `restore_keys` are literal prefixes.
 - Restore happens before the script; save happens after a successful
-  job, only when the exact key missed. Keys are immutable — change the
-  key to refresh.
+  job, only when the exact key missed. Keys are immutable, so the key
+  must move whenever the dependencies do: `${checksum:}` hashes one
+  file, so add a segment per lockfile or build script that pins
+  versions (`gradle-${checksum:settings.gradle.kts}-${checksum:build.gradle.kts}-…`).
 - **Paths are inside the workspace.** Point tool caches there:
   `npm ci --cache .npm`, `pnpm config set store-dir .pnpm-store`,
   `export PIP_CACHE_DIR=$PWD/.cache/pip`,
@@ -213,42 +225,27 @@ cache:
   `export CARGO_HOME=$PWD/.cargo`, Maven `-Dmaven.repo.local=.m2/repository`.
   Cache `node_modules` only when installs are slow and the lockfile key
   makes it safe; the package-manager store is usually the better target.
-- **Scope: one cache per workload.** The pipeline, each workflow, and
-  each delegated child body has its own namespace, shared by all
-  branches and PRs of that workload. Limits: 2 GiB per entry, 10 GiB per
-  workload, entries unused for 14 days are evicted.
-- **Pull-request runs restore but never save.** A workflow that only
-  runs `on: pull_request` therefore never fills its own cache. To give
-  PR checks a warm cache, add a non-PR trigger to the same entry (they
-  share one namespace) and make sure that run **executes** the install:
-  a job with `skip: built` whose inputs match a stored run is reused on
-  the warm run and saves nothing. The robust shape is an install step
-  that runs on every trigger and an early exit on the warm run:
-
-  ```yaml
-  # pipemesh.yaml
-  checks:
-    body: !include .pipemesh/checks.yaml
-    triggers:
-      pr:   { on: pull_request }
-      warm: { on: schedule, cron: "0 4 * * *" }   # fills the cache PR runs restore
-  ```
-
-  ```yaml
-  # .pipemesh/checks.yaml — a job without skip: built
-  test:
-    stage: test
-    image: node:22-bookworm
-    cache: { key: "npm-${checksum:package-lock.json}", restore_keys: [npm-], paths: [.npm] }
-    script: |
-      npm ci --cache .npm --prefer-offline
-      if [ "${CI_PIPELINE_SOURCE:-}" = schedule ]; then echo "cache warm-up run"; exit 0; fi
-      npm test
-  ```
-
-  Mention the trade-off (one extra run a day) when you add it. Jobs that
-  keep `skip: built` in PR workflows are reused when their inputs are
-  unchanged and run with a cold cache otherwise — often good enough.
+- **Who saves, who restores.** Each workload (the pipeline, each
+  workflow, each delegated child) saves into its own namespace, and
+  only trusted runs save: **pull-request runs never save**, so code
+  under review can't plant entries a deploy would restore. A
+  pull-request run restores from its own workload first, then from
+  every other workload of the same manifest — when the entry was saved
+  with the **same cache `paths:`**. An exact key anywhere beats a prefix
+  match; the log says `restored <key> (<size>) from <workload>`.
+- **So share the cache definition** between the default-branch job and
+  the PR job that run the same install: identical `paths:` (and key).
+  The simplest way is one file both include —
+  `cache: !include .pipemesh/npm-cache.yaml` — or a root definition
+  reached with `!ref` when both jobs live in `pipemesh.yaml`. PR checks
+  then start warm from what the pipeline saved; no extra trigger needed.
+  A PR-only workflow whose cache paths no other workload uses has
+  nothing to restore.
+- **A cache fills only when its job really runs.** A `skip: built` job
+  that is reused saves nothing, so after a key change the cache stays
+  empty until a revision actually runs the job.
+- Limits: 2 GiB per entry, 10 GiB per workload; entries unused for 14
+  days are evicted.
 
 Mapping from other CI: GitHub `actions/cache` / `setup-node cache: npm`
 / `setup-python cache: pip` → `cache:` with the lockfile checksum;

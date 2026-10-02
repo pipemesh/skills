@@ -49,7 +49,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `dependencies:` | `consumes:` names exactly what the job receives |
 | `artifacts: paths:` | `produces: { <key>: { path: <dir or file>, expire: 14d } }` |
 | `artifacts: reports: junit` | no equivalent; keep the file as a `produces:` entry if useful |
-| `cache: key: files: [lock]` | `cache: { key: "deps-${checksum:<lock>}", restore_keys: [deps-], paths: [...] }` — one cache per workload; PR runs don't save (see artifacts-and-caching.md) |
+| `cache: key: files: [lock]` | `cache: { key: "deps-${checksum:<lock>}", restore_keys: [deps-], paths: [...] }` — PR runs don't save; they restore what default-branch jobs saved with the same paths (see artifacts-and-caching.md) |
 | `cache: policy: pull` | `cache: { …, policy: pull }` |
 | `rules: - if: $CI_PIPELINE_SOURCE == "merge_request_event"` | the job goes in the `on: pull_request` workflow body |
 | `rules: - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` | the job goes in the pipeline body |
@@ -171,11 +171,7 @@ pipemesh:
   pipelines:
     pipeline: !ref pipeline
   workflows:
-    checks:
-      body: !ref checks
-      triggers:
-        pr:   { on: pull_request }
-        warm: { on: schedule, cron: "0 4 * * *" }   # PR runs never save the cache; this one does
+    checks: { body: !ref checks, on: pull_request }   # restores what build saved: same node.cache
 ```
 
 The manual production gate needs a decision from the user (see
