@@ -722,6 +722,9 @@ def check_body(where: str, body, kind: str, repo: Repo, delegated: bool):
         artifacts = job.get("artifacts")
         if artifacts is not None:
             R.warn(jw, "artifacts: is the old form — prefer produces: { <key>: <path> } so consumers can name it")
+        for v in (job.get("variables") or {}):
+            if v in ("CI_PIPELINE_SOURCE", "CI_COMMIT_TAG", "CI_MERGE_REQUEST_EVENT_TYPE") or str(v).startswith("CI_MERGE_REQUEST_"):
+                R.error(f"{jw}.variables", f"{v} is set by the trigger, never by configuration")
         for s in as_list(job.get("config")):
             if not CONFIG_NAME.match(str(s)):
                 R.error(f"{jw}.config", f"'{s}' — config names are UPPER_SNAKE_CASE")
@@ -844,12 +847,6 @@ def workflow_warnings(where, body, kinds):
     elif "pull_request" in kinds and len(kinds) > 1 and cached and all(j.get("skip") == "built" for j in cached):
         R.warn(where, "every cached job has skip: built, so the non-PR run reuses stored results instead of running "
                       "and saves no cache — give the warm-up a job without skip: built (see artifacts-and-caching.md → Cache)")
-    if "pull_request" in kinds:
-        for name, j in jobs.items():
-            d = j.get("delegate") if isinstance(j, dict) else None
-            if isinstance(d, dict) and d.get("type") == "workflow":
-                R.warn(f"{where}.jobs.{name}", "a delegated child run doesn't receive the pull request's variables "
-                       "(CI_MERGE_REQUEST_*) — keep pull-request bodies flat")
 
 
 def check_inputs(where, entry):

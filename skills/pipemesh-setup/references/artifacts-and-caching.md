@@ -300,10 +300,11 @@ By trigger:
 Not set: `CI_COMMIT_BRANCH`, `CI_DEFAULT_BRANCH`, `CI_PIPELINE_ID`,
 `CI_JOB_ID`, `CI_COMMIT_BEFORE_SHA`. On pipeline revisions
 `CI_COMMIT_REF_NAME` may be the literal `HEAD`; don't branch on it
-there — the pipeline is the default branch by definition. A delegated
-child run doesn't receive its parent's trigger variables
-(`CI_MERGE_REQUEST_*`, `CI_COMMIT_TAG`, inputs); pass what it needs in
-`params.variables`, and keep pull-request workflow bodies flat.
+there — the pipeline is the default branch by definition. Pass what a
+delegated child's scripts need from the parent run (an input, the tag
+name) explicitly in `params.variables`. The trigger variables
+(`CI_PIPELINE_SOURCE`, `CI_COMMIT_TAG`, `CI_MERGE_REQUEST_*`) are set by
+Pipemesh only — never set them in `variables:`.
 
 GitHub Actions equivalents: `github.sha` → `$CI_COMMIT_SHA`;
 `github.ref_name` → `$CI_COMMIT_REF_NAME` (PRs: source branch; tags:
