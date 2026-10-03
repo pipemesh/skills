@@ -56,7 +56,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `rules: - if: $CI_COMMIT_TAG` | workflow `on: tag` (filter `tags: ["v*"]`) |
 | `rules: - if: $CI_PIPELINE_SOURCE == "schedule"` | workflow `on: schedule`, `cron:` from the GitLab schedule (UTC) |
 | `rules: - changes: [path/**]` | `paths: [path]` (+ `skip: built` in workflows) |
-| `rules: - if: $CI_COMMIT_BRANCH =~ /^release/` (other branches) | not supported: only the default branch is watched — ask (tags or a manual workflow) |
+| `rules: - if: $CI_COMMIT_BRANCH =~ /^release/` (other branches) | not supported: only the branch the repository was added with is watched — ask (tags or a manual workflow) |
 | `only:` / `except:` | same mapping as `rules:` |
 | `when: manual` | no per-job manual key. Operators hold promotions into a job from the board ("Disable promotions…"); see onboarding.md → Holding production. For manual one-offs, a workflow with no trigger |
 | `when: always` / `on_failure` | no equivalent; `allow_failure: true` keeps a red job from blocking |

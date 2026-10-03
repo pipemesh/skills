@@ -8,8 +8,8 @@ description: Set up Pipemesh for a repository. Scans the existing CI/CD configur
 Pipemesh (https://pipemesh.io) is a CI/CD control plane. A repository
 declares what it runs in one file, `pipemesh.yaml`, at its root:
 
-- a **pipeline** — long-lived; every commit on the default branch
-  becomes a *revision* that promotes job by job (build → staging →
+- a **pipeline** — long-lived; every commit on the repository's branch
+  (the default branch it was added with, e.g. `main`) becomes a *revision* that promotes job by job (build → staging →
   production). Each job remembers what it last ran, so the board answers
   "what is deployed right now";
 - **workflows** — one-shot runs per trigger: pull requests, tags,
@@ -56,8 +56,9 @@ from names.
   Cargo workspaces), lockfiles, toolchain version files (`.nvmrc`,
   `.tool-versions`, `.python-version`, `go.mod`, `.java-version`).
 - Repository facts: the remote (`git remote get-url origin`), the
-  default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`,
-  falling back to `main`/`master`), and whether a `pipemesh.yaml`
+  default branch's name (`git symbolic-ref --short refs/remotes/origin/HEAD`,
+  or `gh repo view --json defaultBranchRef`; it's the branch Pipemesh
+  will follow and the one OIDC subjects name), and whether a `pipemesh.yaml`
   already exists — if it does, this is an edit: keep job names (they
   carry history; see `was:` in manifest.md) and change only what the
   user asked for.
@@ -115,7 +116,8 @@ The rules that most often go wrong — they differ from other CI systems:
 1. **`stage:` does not order execution.** A job waits only for the jobs
    in its `needs:` and the producers of what it `consumes:`. Translate
    stage order into explicit `needs:` edges.
-2. **Only the default branch is watched.** The pipeline follows it (no
+2. **One branch is watched: the one the repository was added with**
+   (its default branch, recorded by name). The pipeline follows it (no
    trigger; one per repository, registered as `pipeline`). Pull
    requests, tags, schedules and manual runs are workflows. Pushes to
    other branches start nothing — ask when the old CI deploys from one.
@@ -189,8 +191,8 @@ error; fix or consciously accept each warning. If PyYAML is missing,
 `uv run --with pyyaml python3 …` or `pip install pyyaml`; if Python
 isn't available, check by hand against the rules in step 4 and
 manifest.md. The checker mirrors the loader's documented rules; the
-authoritative check happens when the file reaches the default branch of
-an enabled repository, where Pipemesh reports any load error with the
+authoritative check happens when the file reaches the branch of an
+enabled repository, where Pipemesh reports any load error with the
 file and key.
 
 Then re-read the result against the inventory: every row is covered or

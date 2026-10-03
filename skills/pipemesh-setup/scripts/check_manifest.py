@@ -10,7 +10,7 @@ what is legal but probably not what you meant (WARN). Exit code 1 when there
 is at least one ERROR.
 
 This mirrors the loader's documented rules; it is not the loader. The
-authoritative check happens when the manifest lands on the default branch
+authoritative check happens when the manifest lands on the branch
 of an enabled repository: a load error shows on the repository's page in
 Pipemesh, naming the file and key.
 
@@ -550,7 +550,7 @@ def check_body(where: str, body, kind: str, repo: Repo, delegated: bool):
     for alias, url in (repos.items() if isinstance(repos, dict) else []):
         if not isinstance(url, str):
             R.error(f"{where}.repos.{alias}", "must be a repository path (github.com/org/repo); a declared repository "
-                    "is followed on its default branch")
+                    "is followed on the branch it was added with")
     if repos and kind != "pipeline":
         R.warn(where, "repos: is a pipeline's (every revision pins a version of each declared repository)")
     jobs = {}
@@ -895,7 +895,13 @@ def check_trigger(where, trig, declared):
         if f in trig and on != kind:
             R.error(where, f"{f}: filters on: {kind} only")
     if on == "push" and "branches" in trig:
-        R.warn(where, "on: push only ever sees the default branch, so branches: adds nothing — leave it out")
+        names = [str(b) for b in as_list(trig.get("branches"))]
+        if REPO_BRANCH and REPO_BRANCH not in names:
+            R.error(where, f"branches: {names} never matches: push runs come only from the branch the repository is "
+                           f"added with ({REPO_BRANCH}, the checkout's default branch) — leave branches: out")
+        else:
+            R.warn(where, "push runs come only from the branch the repository was added with, so branches: can "
+                          "only repeat it — leave it out")
     for t in as_list(trig.get("targets")):
         if any(ch in str(t) for ch in "*?["):
             R.warn(where, f"targets: '{t}' — target branches are exact names, not globs")
@@ -913,9 +919,28 @@ def check_trigger(where, trig, declared):
             R.error(where, f"required input '{k}' has no default and no value")
 
 
+REPO_BRANCH = None
+
+
+def default_branch(root):
+    """The checkout's default branch name (what Pipemesh records when the repository is added), if git knows it."""
+    import subprocess
+    # origin/HEAD only: the checked-out branch may be a feature branch.
+    for cmd in (["git", "-C", root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],):
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if out and out != "HEAD":
+            return out.split("/", 1)[1] if out.startswith("origin/") else out
+    return None
+
+
 def main():
+    global REPO_BRANCH
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     repo = Repo(root)
+    REPO_BRANCH = default_branch(repo.root)
     manifest_path = os.path.join(repo.root, "pipemesh.yaml")
     if not os.path.isfile(manifest_path):
         print(f"no pipemesh.yaml at {repo.root}")
@@ -995,7 +1020,7 @@ def main():
                 allowed = PIPELINE_ENTRY_KEYS if kind == "pipeline" else WORKFLOW_ENTRY_KEYS
                 for k in entry:
                     if k not in allowed:
-                        extra = " — pipelines take no triggers: every commit on the default branch is a revision" \
+                        extra = " — pipelines take no triggers: every commit on the repository's branch is a revision" \
                             if kind == "pipeline" and k in ("on", "triggers", "branches", "cron", "tags", "targets") else ""
                         R.error(w, f"unknown key '{k}'{extra}")
                 if "file" in entry:

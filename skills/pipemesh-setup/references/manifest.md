@@ -59,7 +59,8 @@ pipemesh:
 
 - **One pipeline per repository**, named `pipeline` (its URL is
   `/github.com/<org>/<repo>/-/pipeline`). It takes no triggers: every
-  commit on the default branch is a revision.
+  commit on the repository's branch — the one it was added with, by
+  name — is a revision.
 - Any number of workflows. Names match `[a-z0-9][a-z0-9_-]*`, unique
   across both sections; `settings`, `jobs`, `runs`, `events`,
   `workflows`, `pipelines`, `repository`, `default` are reserved, and a
@@ -71,14 +72,15 @@ pipemesh:
 
 | `on:` | filter | meaning |
 | --- | --- | --- |
-| `push` | — | a new head on the **default branch** (runs beside the pipeline's revision) |
+| `push` | — | a new head on the **repository's branch** (runs beside the pipeline's revision) |
 | `pull_request` | `targets: [main]` (exact branch names) | each PR head, and merge-queue groups |
 | `tag` | `tags: ["v*"]` (`*` and `?` globs) | a pushed tag |
 | `schedule` | `cron: "0 3 * * *"` | UTC; always quote the cron |
 | `manual` | — | explicit manual trigger (no `on:` at all is also manual-only) |
 
-Pushes to other branches never start runs, so a `branches:` filter
-adds nothing — leave it out. A tag
+Pushes to other branches never start runs, so a `branches:` filter can
+only repeat the repository's branch — any other name never fires. Leave
+it out. A tag
 trigger fires for tags pushed after it is registered (existing tags are
 history). `on:` (one trigger) and `triggers:` (a named map of several)
 are mutually exclusive. Several triggers on one entry share one history:
@@ -280,7 +282,7 @@ Registry components (`uses: <stream>/<name>@<major>`, resolved from
 ```yaml
 pipeline:
   repos:
-    infra: github.com/acme/infra           # followed on its default branch
+    infra: github.com/acme/infra           # followed on the branch it was added with
   stages: [deploy]
   jobs:
     apply:

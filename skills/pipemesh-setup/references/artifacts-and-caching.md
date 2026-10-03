@@ -261,7 +261,7 @@ so code under review can't plant results that a deploy would ship.
 
 | Tool | Setup in the job | Credentials |
 | --- | --- | --- |
-| Turborepo + Vercel Remote Cache | `setup: [{ uses: vercel/turborepo-token@1, with: { team: <slug> } }, { uses: turbo/remote-cache@1, with: { team: <slug> } }]` | none stored: OIDC policy on the Vercel team trusting `https://pipemesh.io/api/oidc`, `aud https://vercel.com/<slug>`, `sub` = the build jobs (default-branch context only) |
+| Turborepo + Vercel Remote Cache | `setup: [{ uses: vercel/turborepo-token@1, with: { team: <slug> } }, { uses: turbo/remote-cache@1, with: { team: <slug> } }]` | none stored: OIDC policy on the Vercel team trusting `https://pipemesh.io/api/oidc`, `aud https://vercel.com/<slug>`, `sub` = the build jobs' `ref:refs/heads/<branch>` subjects (never `pull_request`) |
 | Turborepo, self-hosted cache | `setup: [{ uses: turbo/remote-cache@1, with: { api: https://cache.example.com, team: <team>, token_var: TURBO_CACHE_TOKEN } }]` | `secrets: [TURBO_CACHE_TOKEN]` on default-branch jobs |
 | Turborepo with an existing `TURBO_TOKEN` | `turbo/remote-cache@1` with `team:` and `secrets: [TURBO_TOKEN]` | the token as a secret, not given to PRs |
 | Nx Cloud | `secrets: [NX_CLOUD_ACCESS_TOKEN]` (read-write) on default-branch builds; set the workspace's default access to read-only so token-less PR runs read only; `NX_DAEMON=false`, `NX_CLOUD_DISABLE_METRICS_COLLECTION=true` on every Nx job | the token as a secret |
@@ -287,7 +287,7 @@ By trigger:
 
 | Run | `CI_PIPELINE_SOURCE` | Extra |
 | --- | --- | --- |
-| pipeline revision, `on: push` | unset | — |
+| pipeline revision, `on: push` | unset | `CI_COMMIT_REF_NAME` = the repository's branch (e.g. `main`) |
 | pull request | `merge_request_event` | `CI_MERGE_REQUEST_IID`, `CI_MERGE_REQUEST_SOURCE_BRANCH_NAME`, `CI_MERGE_REQUEST_TARGET_BRANCH_NAME`; `CI_COMMIT_REF_NAME` = source branch |
 | merge queue | `merge_request_event` | `CI_MERGE_REQUEST_EVENT_TYPE=merge_train`, target branch |
 | tag | `push` | `CI_COMMIT_TAG`, `CI_COMMIT_REF_NAME` = the tag |
@@ -295,9 +295,9 @@ By trigger:
 | manual | `web` | inputs |
 
 Not set: `CI_COMMIT_BRANCH`, `CI_DEFAULT_BRANCH`, `CI_PIPELINE_ID`,
-`CI_JOB_ID`, `CI_COMMIT_BEFORE_SHA`. On pipeline revisions
-`CI_COMMIT_REF_NAME` may be the literal `HEAD`; don't branch on it
-there — the pipeline is the default branch by definition. Pass what a
+`CI_JOB_ID`, `CI_COMMIT_BEFORE_SHA`. Don't branch on
+`CI_COMMIT_REF_NAME` in pipeline jobs — the pipeline only ever sees the
+repository's branch. Pass what a
 delegated child's scripts need from the parent run (an input, the tag
 name) explicitly in `params.variables`. The trigger variables
 (`CI_PIPELINE_SOURCE`, `CI_COMMIT_TAG`, `CI_MERGE_REQUEST_*`) are set by

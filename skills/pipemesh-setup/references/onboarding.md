@@ -84,8 +84,14 @@ Give the user the steps that apply, with this repository's real names.
 
 ### 2. Enable the repository
 
-In **Repositories**, enable `<org>/<repo>`. A repository without
-`pipemesh.yaml` on its default branch is enabled in a waiting state and
+In **Repositories**, enable `<org>/<repo>`. Enabling records the
+repository's branch **by name** — its default branch at that moment
+(e.g. `main`). The pipeline, push workflows and the jobs' OIDC subjects
+all follow that branch. A later rename or a new default branch is not
+followed: changing it means removing the repository and adding it again,
+which starts a fresh history — so check the default branch is the one
+that should deploy before enabling. A repository without
+`pipemesh.yaml` on that branch is enabled in a waiting state and
 activates when the file lands — so enable it before merging the PR.
 For a multi-repository pipeline, also add each repository named under
 `repos:` to the same organization (they need no manifest of their own).
@@ -124,16 +130,18 @@ Compute the subjects for the user. The workload alias is the
 workload's page path without the leading `/`, with `/-/` and every `/`
 after it turned into `:`:
 
-| Job | Page | Subject (default branch) |
+| Job | Page | Subject (repository added on `main`) |
 | --- | --- | --- |
-| `deploy_staging` in the repo's pipeline | `/github.com/acme/shop/-/pipeline` | `pipeline:github.com/acme/shop:pipeline:default_branch:job:deploy_staging` |
-| `build` in child pipeline `orders` | `/github.com/acme/shop/-/pipeline/orders` | `pipeline:github.com/acme/shop:pipeline:orders:default_branch:job:build` |
-| `compile` inside the workflow the pipeline's `build` job delegates to | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:default_branch:job:compile` |
+| `deploy_staging` in the repo's pipeline | `/github.com/acme/shop/-/pipeline` | `pipeline:github.com/acme/shop:pipeline:ref:refs/heads/main:job:deploy_staging` |
+| `build` in child pipeline `orders` | `/github.com/acme/shop/-/pipeline/orders` | `pipeline:github.com/acme/shop:pipeline:orders:ref:refs/heads/main:job:build` |
+| `compile` inside the workflow the pipeline's `build` job delegates to | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:ref:refs/heads/main:job:compile` |
 | `publish` in workflow `release`, on a tag | `/github.com/acme/shop/-/release` | `pipeline:github.com/acme/shop:release:ref:refs/tags/v1.2.3:job:publish` (trust with a `StringLike` on `…:release:ref:refs/tags/v*:job:publish`) |
 
-Contexts: `default_branch` (pipeline revisions; push/schedule/manual
-runs of the default branch), `ref:refs/heads/<branch>`,
-`ref:refs/tags/<tag>`, `pull_request`. **Never trust `pull_request`
+Contexts: `ref:refs/heads/<branch>` (pipeline revisions and push,
+schedule and manual runs — `<branch>` is the branch the repository was
+added with), `ref:refs/tags/<tag>`, `pull_request`. Use the real branch
+name from step 1 of the survey; a trust pinned to `main` refuses jobs
+from any other branch. **Never trust `pull_request`
 for anything that can write** — anyone who can open a PR runs code
 there. Wildcards over the context let PRs in; wildcards over the job
 name after a pinned context don't.
@@ -149,7 +157,7 @@ AWS example trust policy (the IAM OIDC provider for
   "Condition": {
     "StringEquals": {
       "pipemesh.io/api/oidc:aud": "sts.amazonaws.com",
-      "pipemesh.io/api/oidc:sub": "pipeline:github.com/acme/shop:pipeline:default_branch:job:deploy_staging"
+      "pipemesh.io/api/oidc:sub": "pipeline:github.com/acme/shop:pipeline:ref:refs/heads/main:job:deploy_staging"
     }
   }
 }
@@ -184,9 +192,9 @@ their queue. Images used on your runners need bash, git, curl and tar.
 ### 7. Merge and watch
 
 - The PR that adds `pipemesh.yaml` gets no Pipemesh checks: workloads
-  exist once they are declared on the default branch. The checker
+  exist once they are declared on the repository's branch. The checker
   (step 5) is the pre-merge validation.
-- Merging the PR to the default branch starts the first revision. The
+- Merging the PR into that branch starts the first revision. The
   board is at `https://pipemesh.io/github.com/<org>/<repo>` (the
   pipeline at `…/-/pipeline`). If the manifest doesn't load, the
   repository shows the load error, naming the file and key. The first

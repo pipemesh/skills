@@ -32,7 +32,7 @@ number of workflows per repository.
 | Publishes a library, CLI, SDK, chart or image on a tag | workflow | `on: tag`, `tags: ["v*"]` |
 | Nightly / scheduled jobs (sweeps, base-image refresh, cleanup) | workflow | `on: schedule`, quoted `cron:` |
 | `workflow_dispatch` / "Run pipeline" buttons with inputs | workflow, no triggers (manual-only), `inputs:` | |
-| Deploys from a non-default branch (`release/*`, `prod`) | ask — Pipemesh only watches the default branch for pushes. Options: release by tag (`on: tag`), a manual workflow with an input naming what to deploy, or fold that branch's flow into the default-branch pipeline | |
+| Deploys from a non-default branch (`release/*`, `prod`) | ask — Pipemesh watches one branch per repository, the one it was added with (by name, its default branch). Options: release by tag (`on: tag`), a manual workflow with an input naming what to deploy, or fold that branch's flow into the main pipeline | |
 | Preview environments per PR | workflow `on: pull_request` | |
 | A heavy CI suite that must pass before deploy | pipeline job that `delegate`s to a workflow body (one node, one verdict) | |
 
