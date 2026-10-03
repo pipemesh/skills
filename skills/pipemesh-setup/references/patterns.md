@@ -25,7 +25,7 @@ Contents
 The default shape for an application repository.
 
 ```yaml
-# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-manifest.schema.json
+# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json
 checks: !include .pipemesh/checks.yaml
 
 pipeline:
@@ -289,7 +289,7 @@ on:
     inputs:
       pipemesh_sha: { type: string, required: true }     # the revision to act on
       pipemesh_run: { type: string, required: true }     # the Pipemesh job run
-      environment:  { type: string, required: true }     # one per manifest input (max 8)
+      environment:  { type: string, required: true }     # one per definition input (max 8)
 run-name: deploy ${{ inputs.environment }} · ${{ inputs.pipemesh_run }}
 jobs:
   deploy:

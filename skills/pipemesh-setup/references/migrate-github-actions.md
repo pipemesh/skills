@@ -120,7 +120,7 @@ secret named `X` (names are `UPPER_SNAKE_CASE`; rename if needed) set
 in the repository's Settings in Pipemesh, and declared on exactly the
 jobs that use it. Environment-scoped secrets (staging vs production
 values of one name) become two names (`STAGING_DATABASE_URL`,
-`PRODUCTION_DATABASE_URL`). Values never go in the manifest. Cloud
+`PRODUCTION_DATABASE_URL`). Values never go in the definition. Cloud
 credentials that were static keys are a good moment to move to OIDC —
 suggest it, don't force it.
 
@@ -129,7 +129,7 @@ suggest it, don't force it.
 Only if the user chose delegation for a workflow:
 
 - add `workflow_dispatch` with the inputs `pipemesh_sha` and
-  `pipemesh_run` (plus one per manifest input, ≤ 8);
+  `pipemesh_run` (plus one per definition input, ≤ 8);
 - check out `${{ inputs.pipemesh_sha }}` in every job;
 - put `${{ inputs.pipemesh_run }}` in `run-name:`;
 - remove the `push`/`pull_request` triggers that Pipemesh now owns, so
@@ -142,5 +142,5 @@ Only if the user chose delegation for a workflow:
   `permissions: { id-token: write, contents: read }`, after the
   delegating job declares them in `consumes:`.
 
-The checker (scripts/check_manifest.py) verifies the dispatch inputs
+The checker (scripts/check_definition.py) verifies the dispatch inputs
 when the workflow file is in the checkout.

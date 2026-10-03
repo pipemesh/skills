@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Static checks for a Pipemesh manifest (pipemesh.yaml) before it is committed.
+"""Static checks for a Pipemesh definition (pipemesh.yaml) before it is committed.
 
 Usage:
-    python3 check_manifest.py [REPO_ROOT]        # default: the current directory
+    python3 check_definition.py [REPO_ROOT]        # default: the current directory
 
 Reads REPO_ROOT/pipemesh.yaml, resolves `!include` and `!ref` the way the
 Pipemesh loader does, and reports what the loader would reject (ERROR) and
@@ -10,12 +10,12 @@ what is legal but probably not what you meant (WARN). Exit code 1 when there
 is at least one ERROR.
 
 This mirrors the loader's documented rules; it is not the loader. The
-authoritative check happens when the manifest lands on the branch
+authoritative check happens when the definition lands on the branch
 of an enabled repository: a load error shows on the repository's page in
 Pipemesh, naming the file and key.
 
 Needs PyYAML. Without it: `pip install pyyaml`, or run with
-`uv run --with pyyaml python3 check_manifest.py`.
+`uv run --with pyyaml python3 check_definition.py`.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ try:
     import yaml
 except ImportError:  # pragma: no cover
     sys.stderr.write(
-        "check_manifest.py needs PyYAML: pip install pyyaml "
-        "(or: uv run --with pyyaml python3 check_manifest.py)\n")
+        "check_definition.py needs PyYAML: pip install pyyaml "
+        "(or: uv run --with pyyaml python3 check_definition.py)\n")
     sys.exit(2)
 
 # ---------------------------------------------------------------------------
@@ -861,7 +861,7 @@ def pr_cache_warnings(registrations):
         for job, paths in cache_path_sets(body):
             if paths not in others:
                 R.warn(f"{where}.jobs.{job}", f"cache paths {list(paths)}: pull-request runs never save, and no "
-                       "other workload in this manifest saves a cache with these paths, so this job always starts "
+                       "other workload in this definition saves a cache with these paths, so this job always starts "
                        "cold — share the cache definition with the default-branch job that runs the same install")
 
 
@@ -941,8 +941,8 @@ def main():
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     repo = Repo(root)
     REPO_BRANCH = default_branch(repo.root)
-    manifest_path = os.path.join(repo.root, "pipemesh.yaml")
-    if not os.path.isfile(manifest_path):
+    definition_path = os.path.join(repo.root, "pipemesh.yaml")
+    if not os.path.isfile(definition_path):
         print(f"no pipemesh.yaml at {repo.root}")
         return 1
     raw = repo.load("pipemesh.yaml", "pipemesh.yaml")

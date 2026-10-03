@@ -61,7 +61,7 @@ directory — `~/.claude/skills/` (Claude Code, all projects),
 - `git`. The GitHub CLI (`gh`) to open the pull request (otherwise the
   skill gives you the compare URL).
 - Python 3 with PyYAML for the checker (`pip install pyyaml`, or
-  `uv run --with pyyaml`). Without it the agent checks the manifest by
+  `uv run --with pyyaml`). Without it the agent checks the definition by
   hand against the same rules.
 - Pipemesh connects to GitHub today; GitLab and self-hosted repositories
   are coming soon.
@@ -73,7 +73,7 @@ skills/pipemesh-setup/
 ├── SKILL.md                         the workflow the agent follows
 ├── references/
 │   ├── decisions.md                 pipeline vs workflow, and what to ask
-│   ├── manifest.md                  the pipemesh.yaml grammar
+│   ├── definition.md                the pipemesh.yaml grammar
 │   ├── artifacts-and-caching.md     produces/consumes, images, cache, remote caches, variables
 │   ├── patterns.md                  worked shapes from the public demos
 │   ├── migrate-github-actions.md
@@ -81,7 +81,7 @@ skills/pipemesh-setup/
 │   ├── migrate-other-ci.md
 │   └── onboarding.md                summary, pull request, enabling the repository
 └── scripts/
-    └── check_manifest.py            static checks before committing
+    └── check_definition.py          static checks before committing
 ```
 
 The references are condensed from the [Pipemesh docs](https://pipemesh.io/docs/getting-started)

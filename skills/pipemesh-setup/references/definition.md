@@ -1,4 +1,4 @@
-# The manifest: pipemesh.yaml
+# The definition: pipemesh.yaml
 
 Condensed from pipemesh.io/docs/pipeline-yaml and /docs/release-flow.
 When something here and the live docs disagree, the docs win.
@@ -17,7 +17,7 @@ directly or via other definitions. An unreached key is a load error
 (that is how typos are caught).
 
 ```yaml
-# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-manifest.schema.json
+# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json
 build_body: !include .pipemesh/build.yaml        # a file brought in whole
 
 pipeline:                                         # your definition: a body
@@ -310,12 +310,12 @@ deploy_prod:
   was: deploy_production     # takes over its cursor and runs, once
 ```
 
-When editing an existing manifest, prefer keeping job names.
+When editing an existing definition, prefer keeping job names.
 
 ## Editor validation
 
-Add the modeline at the top of each file — manifest:
-`# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-manifest.schema.json`;
+Add the modeline at the top of each file — definition:
+`# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json`;
 `.pipemesh/*.yaml` bodies: `…/pipemesh-body.schema.json`; components:
 `…/pipemesh-component.schema.json`. In VS Code settings:
 `"yaml.customTags": ["!include scalar", "!ref scalar"]`.

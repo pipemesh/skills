@@ -122,7 +122,7 @@ deploy_production:
 
 ```yaml
 # pipemesh.yaml (after)
-# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-manifest.schema.json
+# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json
 node:
   cache:
     key: npm-${checksum:package-lock.json}

@@ -58,7 +58,7 @@ Adds `pipemesh.yaml` so this repository runs on [Pipemesh](https://pipemesh.io).
 - [ ] Repository enabled in Pipemesh (it waits for this file on `main`)
 - [ ] Secrets created in Pipemesh: `…`
 - [ ] Cloud trust for the job identities: `…`
-- [ ] <anything else this manifest needs>
+- [ ] <anything else this definition needs>
 
 The existing CI keeps running until we turn it off; nothing here changes it.
 ```
@@ -75,7 +75,7 @@ Give the user the steps that apply, with this repository's real names.
    Pipemesh GitHub App's installation: choose the account or
    organization that owns this repository and grant it access (all
    repositories, or select this one — and every repository named under
-   `repos:` in the manifest). Organization members join on their first
+   `repos:` in the definition). Organization members join on their first
    sign-in; their GitHub role decides what they can do (admin/maintain
    operate pipelines, write can start manual workflows).
 3. The App is read-mostly: it reads contents, writes check runs, and —
@@ -94,7 +94,7 @@ that should deploy before enabling. A repository without
 `pipemesh.yaml` on that branch is enabled in a waiting state and
 activates when the file lands — so enable it before merging the PR.
 For a multi-repository pipeline, also add each repository named under
-`repos:` to the same organization (they need no manifest of their own).
+`repos:` to the same organization (they need no definition of their own).
 
 ### 3. Secrets and config
 
@@ -102,7 +102,7 @@ Open the repository in Pipemesh and use its **⚙ Settings** link
 (maintainers see it), or the organization's settings (the gear on the
 organization's catalog) for values shared by several repositories — the
 most specific level wins on a name clash. Create every name the
-manifest lists (names are `UPPER_SNAKE_CASE`):
+definition lists (names are `UPPER_SNAKE_CASE`):
 
 - `secrets:` names → secrets (masked in logs). By default a secret is
   available to every kind of run **except pull requests**; a PR job
@@ -117,7 +117,7 @@ started, and an edit to a value a pipeline job reads starts a new
 revision of its own (staging gets the new value before production).
 List the exact names in your message.
 
-### 4. Cloud access without stored keys (if the manifest uses `aws/role@1` or identity tokens)
+### 4. Cloud access without stored keys (if the definition uses `aws/role@1` or identity tokens)
 
 Pipemesh is an OIDC issuer; trust it once per cloud account:
 
@@ -196,7 +196,7 @@ their queue. Images used on your runners need bash, git, curl and tar.
   (step 5) is the pre-merge validation.
 - Merging the PR into that branch starts the first revision. The
   board is at `https://pipemesh.io/github.com/<org>/<repo>` (the
-  pipeline at `…/-/pipeline`). If the manifest doesn't load, the
+  pipeline at `…/-/pipeline`). If the definition doesn't load, the
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
   with; later revisions skip what didn't change.
@@ -205,7 +205,7 @@ their queue. Images used on your runners need bash, git, curl and tar.
 - Pull requests opened after that get check runs named
   `pipemesh/<workflow>/<job>` (e.g. `pipemesh/checks/test`). Make the
   ones that matter required in branch protection; GitHub's merge queue
-  works with them unchanged. A PR that breaks the manifest gets a
+  works with them unchanged. A PR that breaks the definition gets a
   failing `config` check whose log is the load error.
 - Hosted runners are metered per organization (concurrent jobs and
   build minutes per month, shown under **My account → Compute**); a job
@@ -221,7 +221,7 @@ deploy jobs before the Pipemesh pipeline's first production deploy.
 
 ### Holding production
 
-There is no per-job approval key in the manifest. What Pipemesh offers:
+There is no per-job approval key in the definition. What Pipemesh offers:
 
 - **Disable promotions** on a job from its drawer on the board (a
   maintainer, with a reason): revisions queue in front of it until
@@ -236,7 +236,7 @@ There is no per-job approval key in the manifest. What Pipemesh offers:
   `timeout_seconds`); Pipemesh waits for the run, which waits for the
   approval.
 
-Tell the user which option the manifest uses, and don't drop an
+Tell the user which option the definition uses, and don't drop an
 existing approval silently.
 
 ### Editor support (optional)

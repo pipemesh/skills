@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the manifest; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
 ---
 
 # Pipemesh setup
@@ -26,14 +26,14 @@ read each one when its step comes up, not all up front.
 | File | Read it when |
 | --- | --- |
 | `references/decisions.md` | Step 3 — choosing pipeline vs workflows, and what to ask |
-| `references/manifest.md` | Step 4 — the grammar (always, before writing YAML) |
+| `references/definition.md` | Step 4 — the grammar (always, before writing YAML) |
 | `references/artifacts-and-caching.md` | Step 4 — produces/consumes, images, cache, remote build caches, runtime variables |
 | `references/patterns.md` | Step 4 — worked shapes from the public demos |
 | `references/migrate-github-actions.md` | Step 4 — the repo has `.github/workflows/` |
 | `references/migrate-gitlab-ci.md` | Step 4 — the repo has `.gitlab-ci.yml` |
 | `references/migrate-other-ci.md` | Step 4 — any other CI system, or none |
 | `references/onboarding.md` | Steps 6–8 — summary, pull request, enabling the repo |
-| `scripts/check_manifest.py` | Step 5 — validate before showing the result |
+| `scripts/check_definition.py` | Step 5 — validate before showing the result |
 
 ## Step 1 — Survey the repository
 
@@ -60,11 +60,11 @@ from names.
   or `gh repo view --json defaultBranchRef`; it's the branch Pipemesh
   will follow and the one OIDC subjects name), and whether a `pipemesh.yaml`
   already exists — if it does, this is an edit: keep job names (they
-  carry history; see `was:` in manifest.md) and change only what the
+  carry history; see `was:` in definition.md) and change only what the
   user asked for.
 - Pipemesh connects to **GitHub** today. If the remote is GitLab,
   Bitbucket or self-hosted, say so early: you can still write the
-  manifest, but the repository can't be enabled until support lands.
+  definition, but the repository can't be enabled until support lands.
 
 ## Step 2 — Inventory what the CI does
 
@@ -105,9 +105,9 @@ conventional default — decide, and list those decisions in the summary.
 If no one can answer (a non-interactive run), take the recommended
 options and state the assumptions at the top of the summary.
 
-## Step 4 — Write the manifest
+## Step 4 — Write the definition
 
-Read `references/manifest.md` first, then the migration reference for
+Read `references/definition.md` first, then the migration reference for
 the CI system you found, `references/artifacts-and-caching.md`, and the
 closest shape in `references/patterns.md`.
 
@@ -182,7 +182,7 @@ Comment the non-obvious decisions in the YAML itself (why a deploy has
 Run the bundled checker from the repository root:
 
 ```bash
-python3 <this skill's directory>/scripts/check_manifest.py .
+python3 <this skill's directory>/scripts/check_definition.py .
 ```
 
 It resolves `!include`/`!ref` like the loader, and reports what the
@@ -190,7 +190,7 @@ loader would reject (ERROR) and likely mistakes (WARN). Fix every
 error; fix or consciously accept each warning. If PyYAML is missing,
 `uv run --with pyyaml python3 …` or `pip install pyyaml`; if Python
 isn't available, check by hand against the rules in step 4 and
-manifest.md. The checker mirrors the loader's documented rules; the
+definition.md. The checker mirrors the loader's documented rules; the
 authoritative check happens when the file reaches the branch of an
 enabled repository, where Pipemesh reports any load error with the
 file and key.
@@ -221,7 +221,7 @@ unless the user chose to change them in step 3.
 
 Walk the user through adding the repository in Pipemesh — sign in,
 connect the GitHub App, enable the repository, add the secrets and
-config this manifest names, set up cloud trust for the exact job
+config this definition names, set up cloud trust for the exact job
 identities it uses, and what to watch after merging. Follow
 `references/onboarding.md`, and tailor it: list the real secret names,
 compute the real OIDC subjects for this repository's jobs, and skip

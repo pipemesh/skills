@@ -230,7 +230,7 @@ cache:
   only trusted runs save: **pull-request runs never save**, so code
   under review can't plant entries a deploy would restore. A
   pull-request run restores from its own workload first, then from
-  every other workload of the same manifest — when the entry was saved
+  every other workload of the same definition — when the entry was saved
   with the **same cache `paths:`**. An exact key anywhere beats a prefix
   match; the log says `restored <key> (<size>) from <workload>`.
 - **So share the cache definition** between the default-branch job and
@@ -317,4 +317,4 @@ the tag); `github.base_ref` → `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME`;
 `artifacts: { paths: [...], expire: 7d }` still loads; its files flow
 along `needs:` edges transitively. It can't be combined with
 `produces:` on one job, and it is on its way out — write `produces:` /
-`consumes:` in new manifests.
+`consumes:` in new definitions.
