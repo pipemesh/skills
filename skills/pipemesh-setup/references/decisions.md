@@ -189,4 +189,4 @@ Judgment calls:
 - **A job that reads nothing** (no checkout, no consumes, no secrets
   or config, no `image_from`, no `repos:`) and still skips runs once
   and then shows *no changes* forever: give it its inputs or
-  `skip: never`. The checker warns.
+  `skip: never`. `npx pipemesh check` warns.

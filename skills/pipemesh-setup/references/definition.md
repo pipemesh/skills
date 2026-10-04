@@ -287,8 +287,8 @@ Every job has a job type; write `job_type:` on every job. Absent
 - Every default can be overridden on the job (a `job_type: build` whose
   `checkout:` lists `services/orders` and `libs`; a `job_type: task`
   with `skip: built`). The board's Rules tab shows each effective value
-  and where it came from: "skip: built (from job_type: build)"; so does
-  the checker.
+  and where it came from: "skip: built (from job_type: build)";
+  `npx pipemesh check` lists the effective values.
 - `job_type:` belongs to the job, never to a component: the same
   component can be a build in one definition and a task in another.
 

@@ -41,7 +41,6 @@ read each one when its step comes up, not all up front.
 | `references/migrate-gitlab-ci.md` | Step 4 — the repo has `.gitlab-ci.yml` |
 | `references/migrate-other-ci.md` | Step 4 — any other CI system, or none |
 | `references/onboarding.md` | Steps 6–8 — summary, pull request, enabling the repo |
-| `scripts/check_definition.py` | Step 5 — validate before showing the result |
 
 ## Step 1 — Survey the repository
 
@@ -71,8 +70,9 @@ from names.
   carry history; see `was:` in definition.md) and change only what the
   user asked for. A definition from before the current grammar (jobs
   with `kind:`, components with `component: <name>`, standalone bodies
-  without `type:`) no longer loads: run the checker on it first; each
-  error names the replacement (definition.md → Removed keys).
+  without `type:`) no longer loads: run `npx pipemesh check` on it
+  first (step 5); each error names the replacement (definition.md →
+  Removed keys).
 - Pipemesh connects to **GitHub** today. If the remote is GitLab,
   Bitbucket or self-hosted, say so early: you can still write the
   definition, but the repository can't be enabled until support lands.
@@ -218,8 +218,7 @@ The rules that most often go wrong — they differ from other CI systems:
    `{ a: b }` (only an empty `[]` or `{}` stays inline). The references
    sometimes quote YAML inline in a sentence or a table, such as
    `checkout: [deploy]`, for brevity; in a file that is always
-   `checkout:` with `- deploy` on the next line. The checker warns on
-   flow style.
+   `checkout:` with `- deploy` on the next line.
 6. **`checkout:` is what the job's commands read — and it is
    enforced.** `true` (the whole repository), `false` (nothing) or a
    list of paths from the repository root (a path is itself and
@@ -331,32 +330,41 @@ why a build narrows its checkout or a test is a task), briefly.
 
 ## Step 5 — Validate
 
-Run the bundled checker from the repository root:
+From the repository root:
 
 ```bash
-python3 <this skill's directory>/scripts/check_definition.py .
+npx pipemesh check
 ```
 
-It resolves `!include`/`!ref` like the loader, checks every `type:`
-against where the structure is used (and that every standalone one has
-one), reports what the loader would reject (ERROR) and likely mistakes
-(WARN, including flow-style collections), and then lists every job's
-effective `job_type`, checkout and skip policy with where each came
-from ("skip: built (from job_type: build)"). Fix every error; fix every
-flow-style warning by rewriting the lines in block style; fix or
-consciously accept each other warning — in particular *reads nothing* (the
-job runs once and then skips every revision: give it a checkout or a
-consume, or `skip: never`) and *its script names …, which is not in
-its checkout* (the enforced checkout would fail the job). Read the
-effective list against the inventory: each build checks out what it
+It sends `pipemesh.yaml` and only the files it names — what it
+includes, its local components, the GitHub Actions workflows its jobs
+run — to Pipemesh, which loads them with the loader the repository's
+pipeline will meet, and stores nothing. It lists the files before it
+sends them (`npx pipemesh check --dry-run` lists them and sends
+nothing); tell the user that the check sends them to pipemesh.io.
+
+It prints the load error, if any, then warnings, then every job's
+effective `job_type`, checkout and skip policy, and exits 1 on an
+error. The loader stops at the first error, so fix it and run again
+until the definition loads. Fix or consciously accept each warning — in
+particular *reads nothing* (the job runs once and then skips every
+revision: give it a checkout or a consume, or `skip: never`). Read the
+job list against the inventory: each build checks out what it
 compiles, each deploy what it runs, each task what it needs.
 
-If PyYAML is missing, `uv run --with pyyaml python3 …` or
-`pip install pyyaml`; if Python isn't available, check by hand against
-the rules in step 4 and definition.md. The checker mirrors the loader's documented rules; the
-authoritative check happens when the file reaches the branch of an
-enabled repository, where Pipemesh reports any load error with the
-file and key.
+The check does not flag these; look for them yourself:
+
+- flow-style collections (`[a, b]`, `{ a: b }`): rewrite them in
+  block style;
+- a script that names a repository file its `checkout:` leaves out:
+  the enforced checkout fails the job;
+- a deploy that checks out the whole repository: it redeploys on every
+  commit.
+
+It needs Node 20 or newer and network access. Without them, check by
+hand against the rules in step 4 and definition.md. The same loader
+runs again when the file reaches the branch of an enabled repository,
+where Pipemesh reports any load error with the file and key.
 
 Then re-read the result against the inventory: every row is covered or
 deliberately dropped; every job has a `job_type:`; every standalone

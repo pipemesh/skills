@@ -27,12 +27,11 @@ Sets up Pipemesh for a repository. Ask your agent something like
    deploys by digest (`produces:` / `consumes:`), build reuse, caching,
    remote build caches, secrets by name, and keyless cloud access
    (OIDC).
-4. **Validate** the result with a bundled checker that resolves
-   `!include` / `!ref`, checks each `type:` against where the structure
-   is used, reports what the Pipemesh loader would reject, warns about
-   flow-style YAML, jobs that read nothing, and scripts that name files
-   their checkout leaves out, and lists each job's effective
-   `job_type`, checkout and skip policy.
+4. **Validate** the result with [`npx pipemesh check`](https://www.npmjs.com/package/pipemesh),
+   which sends the definition and only the files it names to Pipemesh
+   and loads them with the same loader the repository's pipeline will
+   meet: load errors with the file and the fix, warnings, and each
+   job's effective `job_type`, checkout and skip policy.
 5. **Offer a pull request** with the files and a mapping from the old CI.
 6. **Explain how to turn it on**: connecting the GitHub App, enabling the
    repository, the secrets to create, the exact OIDC subjects to trust.
@@ -68,9 +67,8 @@ directory — `~/.claude/skills/` (Claude Code, all projects),
 
 - `git`. The GitHub CLI (`gh`) to open the pull request (otherwise the
   skill gives you the compare URL).
-- Python 3 with PyYAML for the checker (`pip install pyyaml`, or
-  `uv run --with pyyaml`). Without it the agent checks the definition by
-  hand against the same rules.
+- Node 20 or newer and network access for `npx pipemesh check`. Without
+  them the agent checks the definition by hand against the same rules.
 - Pipemesh connects to GitHub today; GitLab and self-hosted repositories
   are coming soon.
 
@@ -88,8 +86,6 @@ skills/pipemesh-setup/
 │   ├── migrate-gitlab-ci.md
 │   ├── migrate-other-ci.md
 │   └── onboarding.md                summary, pull request, enabling the repository
-└── scripts/
-    └── check_definition.py          static checks before committing
 ```
 
 The references are condensed from the [Pipemesh docs](https://pipemesh.io/docs/getting-started)

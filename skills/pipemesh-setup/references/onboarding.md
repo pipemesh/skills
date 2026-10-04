@@ -192,8 +192,8 @@ their queue. Images used on your runners need bash, git, curl and tar.
 ### 7. Merge and watch
 
 - The PR that adds `pipemesh.yaml` gets no Pipemesh checks: workloads
-  exist once they are declared on the repository's branch. The checker
-  (step 5) is the pre-merge validation.
+  exist once they are declared on the repository's branch.
+  `npx pipemesh check` (step 5) is the pre-merge validation.
 - Merging the PR into that branch starts the first revision. The
   board is at `https://pipemesh.io/github.com/<org>/<repo>` (the
   pipeline at `…/-/pipeline`). If the definition doesn't load, the

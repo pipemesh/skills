@@ -171,6 +171,6 @@ Only if the user chose to keep a workflow on Actions:
   `id-token: write` and `contents: read`, after the Pipemesh job
   declares them in `consumes:`.
 
-The checker (scripts/check_definition.py) verifies the dispatch inputs
-when the workflow file is in the checkout, and prints the checkout it
-derives from it.
+`npx pipemesh check` sends the workflow file along with the definition
+and prints the checkout Pipemesh reads from it. Check the inputs the
+job passes against the workflow's `workflow_dispatch:` inputs yourself.
