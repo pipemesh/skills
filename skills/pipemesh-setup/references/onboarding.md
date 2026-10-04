@@ -5,6 +5,8 @@
 Keep it short and concrete. Use this order:
 
 ```markdown
+**Preview** — <the link from npx pipemesh preview>: the board it draws, and what it changes
+
 **Assumptions** (only if questions went unanswered): …
 
 **Files**
@@ -50,6 +52,8 @@ Adds `pipemesh.yaml` so this repository runs on [Pipemesh](https://pipemesh.io).
 ## What runs where
 - **Pipeline** (every commit on `main`): build → staging → production …
 - **Workflows**: `checks` on pull requests, `release` on `v*` tags, …
+
+Preview of the board: <the link from npx pipemesh preview> (open until <date>)
 
 ## Mapping from the current CI
 <the table from the summary>
@@ -129,6 +133,11 @@ definition lists (names are `UPPER_SNAKE_CASE`):
 - `config:` names → plain configuration variables.
 - A job that declares a name that isn't set fails before its script,
   saying which.
+
+From the terminal, the user runs `npx pipemesh secrets set NAME` and
+types the value at its hidden prompt (`--org` for the organization's
+level; `npx pipemesh vars set NAME` for config). Never ask for a secret
+in the chat or put one in a command.
 
 Each edit is versioned: a revision pins the versions current when it
 started, and an edit to a value a pipeline job reads starts a new

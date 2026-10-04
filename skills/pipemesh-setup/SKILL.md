@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, what went to production, or whether a change was deployed.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition and shows the user the board it will draw (npx pipemesh preview); offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, what went to production, or whether a change was deployed.
 ---
 
 # Pipemesh setup
@@ -379,7 +379,20 @@ deploys from a pull request; the files are block style throughout.
 
 ## Step 6 — Summarize
 
-Tell the user, concisely (see the template in `references/onboarding.md`):
+**Show it first.** `npx pipemesh preview` sends what `check` sends and
+returns a link: the board this definition will draw and, when the
+repository is already on Pipemesh, what it changes — jobs added,
+removed or changed, and how (checkout, skip, needs, and whether what a
+job runs changed, so it runs again). It needs sign-in
+(`npx pipemesh login`; the user approves the code in the browser).
+Anyone with the link can open it for 7 days, and it shows the job
+names and the structure: say so before you make one for a private
+repository. Put the link at the top of the summary and in the PR body.
+While you and the user iterate on the definition, run
+`npx pipemesh preview --watch` in the background instead: each save
+updates the same link, so they watch one page while you edit.
+
+Then tell the user, concisely (see the template in `references/onboarding.md`):
 the files written, a mapping of old jobs → new jobs, the decisions and
 assumptions you made, any TODOs, and what Pipemesh will need before the
 first run (secrets and config by name, cloud trust, runners, GitHub App
@@ -420,6 +433,7 @@ Once the repository is enabled, answer questions about it with the CLI
 
 | Question | Command |
 | --- | --- |
+| What would my edit change? | edit, `npx pipemesh check`, then `npx pipemesh preview` (`--watch` while iterating) — give the user the link before committing |
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
 | Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
 | Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs) |
