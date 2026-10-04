@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's kind (build, transform, deploy, task, workflow, pipeline) and the files it checks out, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's kind (build, deploy, task, workflow, pipeline) and the files it checks out, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
 ---
 
 # Pipemesh setup
@@ -15,8 +15,8 @@ declares what it runs in one file, `pipemesh.yaml`, at its root:
 - **workflows** — one-shot runs per trigger: pull requests, tags,
   schedules, pushes, manual runs.
 
-Every job says what it is (`kind:` — `build`, `transform`, `deploy`,
-`task`, `workflow` or `pipeline`; no `kind:` means `task`) and what it
+Every job says what it is (`kind:` — `build`, `deploy`, `task`,
+`workflow` or `pipeline`; no `kind:` means `task`) and what it
 reads (`checkout:`). The kind sets the job's defaults: what it checks
 out and when it may skip.
 
@@ -106,7 +106,6 @@ Then give each job its kind (decisions.md → *Choosing each job's kind*):
 | The job… | kind | checks out by default | skips by default |
 | --- | --- | --- | --- |
 | reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | everything (`true`) | `built`: reuses an earlier run with the same inputs |
-| turns what it consumes into what it produces (sign, package, convert) | `transform` | nothing | `built` |
 | ships what it consumes to an environment — **pipelines only** | `deploy` | nothing | `unchanged`: runs when what it ships changed |
 | must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` (also: no `kind:`) | nothing | `never` |
 | runs a body (a CI suite) as one node and waits for it | `workflow` | its jobs' checkouts | its jobs': `built` if all are builds |

@@ -52,12 +52,11 @@ BODY_KEYS = {"stages", "jobs", "variables", "repos"}
 
 # DESIGN-V72: every job has a kind. It sets the job's checkout: and skip:
 # defaults and where the job may appear; absent kind: is a task.
-KINDS = ("build", "transform", "deploy", "task", "workflow", "pipeline")
-SCRIPT_KINDS = {"build", "transform", "deploy", "task"}       # run on an executor
+KINDS = ("build", "deploy", "task", "workflow", "pipeline")
+SCRIPT_KINDS = {"build", "deploy", "task"}       # run on an executor
 CHILD_KINDS = {"workflow", "pipeline"}                          # run a body
 KIND_DEFAULTS = {                                               # (checkout, skip)
     "build": (True, "built"),
-    "transform": (False, "built"),
     "deploy": (False, "unchanged"),
     "task": (False, "never"),
 }
@@ -96,7 +95,7 @@ BODY_KIND_GONE = ("a body's own kind: is gone (DESIGN-V72) — where it is regis
 REMOVED_JOB_KEYS = {
     "paths": "paths: is now checkout: — true (the whole repository), false (nothing) or a list of paths",
     "trigger": "trigger: is gone — kind: workflow or kind: pipeline with body:, or github_actions: on a "
-               "build, transform, deploy or task",
+               "build, deploy or task",
     "sources": "sources: is now checkout:",
     "rules": "rules: is gone — checkout: lists the files the job reads, skip: says when it may skip",
 }
@@ -125,7 +124,7 @@ FOREIGN_KEY_HINTS = {
     "continue-on-error": "write allow_failure: true",
     "container": "write image:",
     "outputs": "use produces: (files, images, packages) and consumes: on the other side",
-    "type": "a job's type is kind: (build, transform, deploy, task, workflow, pipeline)",
+    "type": "a job's type is kind: (build, deploy, task, workflow, pipeline)",
 }
 
 KIND_HINTS = {
@@ -134,9 +133,10 @@ KIND_HINTS = {
     "lint": "a lint is a build", "check": "a check is a build, or a task when it must run every time",
     "release": "a release is a deploy (in a pipeline) or a task (in a workflow)",
     "publish": "a publish is a deploy (in a pipeline) or a task (in a workflow)",
-    "package": "packaging what a job consumes is a transform; from the source, a build",
+    "package": "packaging is a build (checkout: false when it reads only what it consumes)",
+    "transform": "transform is gone: a job that turns what it consumes into something else is a build with checkout: false",
     "delegate": "kind: workflow or kind: pipeline run a body; github_actions: is an executor",
-    "github_actions": "github_actions: is an executor key on a build, transform, deploy or task",
+    "github_actions": "github_actions: is an executor key on a build, deploy or task",
     "image": "an image build is a build", "notify": "a notification is a task",
 }
 
@@ -1075,11 +1075,11 @@ def check_job(jw, name, job, body_kind, repo: Repo, ctx, repos, stages, depth):
                 R.error(jw, f"delegate: {{ type: {t} }} is now kind: {t} with body: (or workload:) and "
                             "variables: on the job")
             elif t == "github_actions":
-                R.error(jw, "delegate: { type: github_actions } is now github_actions: on a build, transform, "
+                R.error(jw, "delegate: { type: github_actions } is now github_actions: on a build, "
                             "deploy or task (github_actions: deploy.yml, or { workflow, ref, inputs, artifacts })")
             else:
                 R.error(jw, "delegate: is gone — kind: workflow or kind: pipeline with body:, or github_actions: "
-                            "on a build, transform, deploy or task")
+                            "on a build, deploy or task")
         elif k in REMOVED_JOB_KEYS:
             R.error(jw, REMOVED_JOB_KEYS[k])
         elif k not in JOB_KEYS:

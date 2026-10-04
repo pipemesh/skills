@@ -3,7 +3,7 @@
 The method is the same everywhere: inventory what runs on which event,
 then sort it into the pipeline (default-branch revisions that build and
 deploy) and workflows (pull requests, tags, schedules, manual runs).
-Each job gets a `kind:` (build, transform, deploy, task; `workflow` and
+Each job gets a `kind:` (build, deploy, task; `workflow` and
 `pipeline` for nested bodies) and a `checkout:` of the files its
 commands read — most CI systems clone the whole tree for every job, and
 Pipemesh checks out only what the job lists. Ordering always becomes

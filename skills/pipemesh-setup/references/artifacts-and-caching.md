@@ -5,7 +5,7 @@ Three different mechanisms, often confused:
 | Mechanism | Holds | Scope | Use it for |
 | --- | --- | --- | --- |
 | **Entries** (`produces:` / `consumes:`) | the build's real outputs: files, images, packages — by digest | the revision; named consumers only | anything a later job ships, tests or builds on |
-| **Reuse** (`skip: built`, the default of builds and transforms) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
+| **Reuse** (`skip: built`, the default of builds) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
 | **Cache** (`cache:`) | tool caches (`.npm`, `.gradle`, pip, Bazel repo cache) | one workload, any branch | making a job that does run faster |
 
 Plus **remote build caches** (Nx Cloud, Turborepo, BuildBuddy), which
@@ -74,8 +74,9 @@ deploy_staging:
   staging must still `consumes: [build/dist]` itself.
 - Two consumed file entries may not overlap in the workspace.
 - A job that only consumes (`checkout: false`) gets the entries and no
-  repository files: a `transform`, a deploy that ships a bundle, a
-  test of an artifact (`kind: build`, `checkout: false`).
+  repository files: a build that signs or packages an artifact, a
+  deploy that ships a bundle, a test of an artifact (`kind: build`,
+  `checkout: false`).
 
 The deploy idiom, used by every demo:
 
@@ -218,7 +219,7 @@ and the pipeline reuse only each other; a pull request reuses those
 first, then its own earlier runs, never another PR's. Expired artifacts
 don't match.
 
-It is the default of `kind: build` and `kind: transform`, in pipelines
+It is the default of `kind: build`, in pipelines
 and in workflows. Deploys keep `skip: unchanged` (their default; it
 exists only in pipelines — in a workflow body it is a load error), and
 tasks `skip: never`. A `kind: workflow` job reuses as a whole when

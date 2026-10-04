@@ -142,7 +142,7 @@ the job's commands do, not from its name:
 | What the job does | kind | `checkout:` default | `skip:` default | where |
 | --- | --- | --- | --- | --- |
 | compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | `true` | `built` | pipelines, workflows |
-| turns what it consumes into what it produces without reading the repository: sign, package, convert, scan an artifact | `transform` | `false` | `built` | pipelines, workflows |
+| signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | `false` | `built` | pipelines, workflows |
 | ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | `false` | `unchanged` | **pipelines only** |
 | anything that must run on every revision: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` (no `kind:` means this) | `false` | `never` | pipelines, workflows |
 | runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows |

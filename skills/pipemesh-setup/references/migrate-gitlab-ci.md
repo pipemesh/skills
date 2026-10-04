@@ -33,8 +33,8 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 4. **A job checks out only what it lists.** GitLab clones the whole
    tree for every job; Pipemesh gives each job exactly its `checkout:`
    (`true`, `false` or a list), and a file left out isn't in the
-   workspace. A `build` defaults to the whole tree; a `deploy`,
-   `transform` or `task` (and a job without `kind:`) to nothing. List
+   workspace. A `build` defaults to the whole tree; a `deploy` or
+   `task` (and a job without `kind:`) to nothing. List
    what each script reads. History is complete either way, so
    `git diff`/`git merge-base` work.
 5. **No anchors, `extends:` or hidden `.jobs`.** Reuse a whole job with

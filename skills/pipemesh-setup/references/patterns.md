@@ -568,7 +568,7 @@ pins a commit of each, and a push to any of them starts a revision.
 
 ```yaml
 sign_app:
-  kind: transform               # turns the consumed app into a signed one
+  kind: build                   # signs the consumed app; checks out only its script
   stage: release
   tags: [macos]                 # the first tag is the queue; runs only on runners registered to it
   consumes: [build/app]

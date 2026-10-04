@@ -20,7 +20,7 @@ Sets up Pipemesh for a repository. Ask your agent something like
 3. **Write** `pipemesh.yaml` (and `.pipemesh/*.yaml` bodies): a pipeline
    that promotes each commit through build → staging → production,
    workflows for pull requests, tags and schedules, every job's kind
-   (`build`, `transform`, `deploy`, `task`, `workflow`, `pipeline`) and
+   (`build`, `deploy`, `task`, `workflow`, `pipeline`) and
    the files it checks out (`checkout:`, read from what its commands
    use), build outputs handed to deploys by digest (`produces:` /
    `consumes:`), build reuse, caching, remote build caches, secrets by

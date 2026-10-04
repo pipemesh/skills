@@ -120,7 +120,7 @@ or the pipeline.
 
 | key | what it does |
 | --- | --- |
-| `kind` | what the job is: `build`, `transform`, `deploy`, `task` (the default), `workflow`, `pipeline` — sets its `checkout:` and `skip:` defaults and where it may appear |
+| `kind` | what the job is: `build`, `deploy`, `task` (the default), `workflow`, `pipeline` — sets its `checkout:` and `skip:` defaults and where it may appear |
 | `stage` | **required**; must be one of the body's `stages`. Places the job on the board — does **not** order execution |
 | `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the kind |
 | `skip` | `unchanged` \| `built` \| `never` — when it may skip. Default from the kind |
@@ -165,7 +165,6 @@ Every job has a kind; write it on every job. Absent `kind:` means
 | kind | `checkout:` default | `skip:` default | allowed in | runs |
 | --- | --- | --- | --- | --- |
 | `build` | `true` | `built` | pipelines, workflows | an executor |
-| `transform` | `false` | `built` | pipelines, workflows | an executor |
 | `deploy` | `false` | `unchanged` | **pipelines** | an executor |
 | `task` (default) | `false` | `never` | pipelines, workflows | an executor |
 | `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows | a body, waited for |
@@ -173,9 +172,9 @@ Every job has a kind; write it on every job. Absent `kind:` means
 
 - **`build`** reads the source and is hermetic, so an earlier run with
   the same fingerprint can stand in for it. Tests, lint, image builds
-  and build-graph fingerprint jobs (`nx/fingerprint@1`, …) are builds.
-- **`transform`** turns what it consumes into what it produces (sign,
-  package, convert) without reading the repository.
+  and build-graph fingerprint jobs (`nx/fingerprint@1`, …) are builds;
+  so is a job that signs or packages what it consumes, with
+  `checkout: false`.
 - **`deploy`** ships what it consumes to an environment and runs when
   that changed since its last success. Pipelines only: the last
   success it compares with, the revision each environment runs,
@@ -241,7 +240,7 @@ secrets/config. The skip policy says what to do with it:
   *no changes*). After a failure it runs regardless until it succeeds.
   **Load error in a workflow body** (a workflow run has no earlier run
   to compare with).
-- `skip: built` — **builds and transforms.** Reuses the outputs of any
+- `skip: built` — **builds.** Reuses the outputs of any
   earlier successful run with the same fingerprint (shown as
   *reused*). PRs reuse trusted (default-branch/tag/pipeline) runs and
   their own, never another PR's.
@@ -254,7 +253,7 @@ revision. It loads, with a warning; give it its inputs or `skip: never`.
 
 ## Executors
 
-A `build`, `transform`, `deploy` or `task` names exactly one executor:
+A `build`, `deploy` or `task` names exactly one executor:
 
 - **`script:`** (with `setup:`, `image:`, `image_from:`, `services:`,
   `tags:`, `cache:`, `publish:`, `secrets:`): Pipemesh's hosted
@@ -472,7 +471,7 @@ replacement:
 | `paths: [src]` | `checkout: [src]` (`paths: []` → `checkout: false`; no `paths:` → `checkout: true`, which only a build defaults to) |
 | `delegate: { type: workflow, params: { body: …, variables: … } }` | `kind: workflow` with `body:` and `variables:` on the job |
 | `delegate: { type: pipeline, params: { body: …, variables: … } }` | `kind: pipeline` with `body:`, `variables:` and what decides the hand-over (`consumes:` or `checkout:`) |
-| `delegate: { type: github_actions, params: { workflow, inputs } }` | `github_actions: { workflow, inputs }` on a build, transform, deploy or task |
+| `delegate: { type: github_actions, params: { workflow, inputs } }` | `github_actions: { workflow, inputs }` on a build, deploy or task |
 | `trigger:` | as `delegate:` |
 | `kind: pipeline` / `kind: workflow` at the top of a body | nothing: the position says it |
 | `repos: { x: { paths: […], mount } }` on a job | `repos: { x: { checkout: […], mount } }` |
