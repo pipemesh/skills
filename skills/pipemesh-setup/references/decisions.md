@@ -1,11 +1,14 @@
-# Choosing the shape: pipeline, workflow, or both — and each job's kind
+# Choosing the shape: pipeline, workflow, or both — and each job's job_type
 
-Pipemesh has two kinds of workload, and most repositories want both.
-Picking the wrong one is the most expensive mistake in a migration, so
-make this decision deliberately and ask when the evidence is mixed.
-Then every job gets a kind (see *Choosing each job's kind* below).
+Pipemesh has two workloads, and most repositories want both. Picking
+the wrong one is the most expensive mistake in a migration, so make
+this decision deliberately and ask when the evidence is mixed. Then
+every job gets a `job_type:` (see *Choosing each job's job_type*
+below). A body's `type:` follows from the decision: `type: pipeline`
+for the pipeline's body (and the bodies `job_type: pipeline` jobs run),
+`type: workflow` for every workflow's.
 
-## The two kinds
+## The two workloads
 
 **Pipeline** — long-lived. Every commit on the repository's default
 branch becomes a *revision* that promotes job by job through the stages.
@@ -23,19 +26,19 @@ number of workflows per repository.
 
 ## Mapping what the repo does today
 
-| What the existing CI does | Kind | Trigger |
+| What the existing CI does | Workload | Trigger |
 | --- | --- | --- |
 | Deploys a service/app to environments on merge to the default branch | pipeline | (default branch) |
 | Build + test on every push to the default branch, feeding a deploy | pipeline (the `build` stage) | (default branch) |
 | Build + test on the default branch with **no** deploy anywhere | ask — see below | |
 | Lint/test/build on pull requests | workflow | `on: pull_request` |
 | Lint/test on pushes to any branch (not just PRs) | workflow `on: pull_request` — feature-branch pushes without a PR don't run | |
-| Publishes a library, CLI, SDK, chart or image on a tag | workflow | `on: tag`, `tags: ["v*"]` |
+| Publishes a library, CLI, SDK, chart or image on a tag | workflow | `on: tag`, with `tags:` listing `"v*"` |
 | Nightly / scheduled jobs (sweeps, base-image refresh, cleanup) | workflow | `on: schedule`, quoted `cron:` |
 | `workflow_dispatch` / "Run pipeline" buttons with inputs | workflow, no triggers (manual-only), `inputs:` | |
 | Deploys from a non-default branch (`release/*`, `prod`) | ask — Pipemesh watches one branch per repository, the one it was added with (by name, its default branch). Options: release by tag (`on: tag`), a manual workflow with an input naming what to deploy, or fold that branch's flow into the main pipeline | |
-| Preview environments per PR | workflow `on: pull_request`; the preview deploy is a `kind: task` there (a deploy is pipeline-only) | |
-| A heavy CI suite that must pass before deploy | a `kind: workflow` job in the pipeline running the suite's body (one node, one verdict) | |
+| Preview environments per PR | workflow `on: pull_request`; the preview deploy is a `job_type: task` there (a deploy is pipeline-only) | |
+| A heavy CI suite that must pass before deploy | a `job_type: workflow` job in the pipeline running the suite's `type: workflow` body (one node, one verdict) | |
 
 Rules of thumb:
 
@@ -45,9 +48,10 @@ Rules of thumb:
 - **An immutable record of one event → workflow.** A release of
   version 1.4.2 must be reproducible as "that run", not "whatever the
   pipeline was at".
-- **PR checks are always a workflow.** The same body can serve both a
-  PR workflow and the pipeline's build stage (`!include` it twice, or
-  a `kind: workflow` job with `body:` in the pipeline).
+- **PR checks are always a workflow.** The same `type: workflow` body
+  can serve both a PR workflow and the pipeline's build stage
+  (`!include` it twice: under `pipemesh.workflows` and as the `body:`
+  of a `job_type: workflow` job in the pipeline).
 - **A library that publishes on merge to main** (continuous release,
   no tags) is a judgment call: a pipeline gives "what version is
   published right now" and skips publishes when nothing changed; a
@@ -71,8 +75,8 @@ question:
    *port to Pipemesh jobs* (hosted runners, full artifact/caching model)
    versus *keep the Actions workflows and let Pipemesh orchestrate them*
    (`github_actions: <file>` on the job, minimal change, Actions stays
-   the compute; the job keeps its kind — a deploy on Actions is a
-   `kind: deploy`). Mixed is fine: port the build, run the deploy on
+   the compute; the job keeps its job type — a deploy on Actions is a
+   `job_type: deploy`). Mixed is fine: port the build, run the deploy on
    Actions.
 3. **Environments and order.** If the deploy targets are ambiguous
    (several environment names, a matrix of regions, conditions on
@@ -119,12 +123,13 @@ the assumption at the top of the summary.
   that checks out the whole tree) uses the build tool's fingerprint
   component (`nx/fingerprint@1`, `turbo/fingerprint@1`,
   `bazel/fingerprint@1`) and produces one entry per service; one
-  `kind: pipeline` job per service consumes its entry and runs a shared
-  service body with `variables: { SERVICE: <name> }`. It checks out
-  nothing, so it hands the revision over only when that entry changed.
+  `job_type: pipeline` job per service consumes its entry and runs a
+  shared `type: pipeline` service body, with `SERVICE: <name>` under its
+  `variables:`. It checks out nothing, so it hands the revision over
+  only when that entry changed.
   See `patterns.md`.
 - **Several services, no build graph** (plain directories): the same
-  dispatch shape without the graph job — each `kind: pipeline` job
+  dispatch shape without the graph job — each `job_type: pipeline` job
   lists the service's directories (and shared libraries) in `checkout:`,
   which checks nothing out and only decides when the revision is handed
   over.
@@ -133,18 +138,19 @@ the assumption at the top of the summary.
   pick their repository with `repo:`. Every declared repository must be
   added to the same Pipemesh organization.
 
-## Choosing each job's kind
+## Choosing each job's job_type
 
-The kind says what a job is. It sets two defaults — what the job checks
-out and when it may skip — and where it may appear. Decide it from what
-the job's commands do, not from its name:
+`job_type:` says what a job is (`type:` is a structure's shape — on a
+job it is always `job`). It sets two defaults — what the job checks out
+and when it may skip — and where it may appear. Decide it from what the
+job's commands do, not from its name:
 
-| What the job does | kind | `checkout:` default | `skip:` default | where |
+| What the job does | `job_type:` | `checkout:` default | `skip:` default | where |
 | --- | --- | --- | --- | --- |
 | compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | `true` | `built` | pipelines, workflows |
 | signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | `false` | `built` | pipelines, workflows |
 | ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | `false` | `unchanged` | **pipelines only** |
-| anything that must run on every revision: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` (no `kind:` means this) | `false` | `never` | pipelines, workflows |
+| anything that must run on every revision: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` (no `job_type:` means this) | `false` | `never` | pipelines, workflows |
 | runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows |
 | hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | `false` (it checks nothing out; a list only decides when to hand over) | `unchanged` | **pipelines only** |
 
@@ -170,16 +176,16 @@ Judgment calls:
   component or chart release — is a `deploy` (it runs when what it
   ships changed). The same release in a tag workflow is a `task` (a
   workflow has no deploys).
-- **A build that reads only part of the tree** keeps `kind: build` and
+- **A build that reads only part of the tree** keeps `job_type: build` and
   narrows `checkout:`. A wrong narrowing fails the job on the missing
   file, which is the point: list every root file it reads.
-- **A deploy reads its scripts, not the source**: `checkout: [deploy]`
-  (or `[charts/app, scripts/deploy.sh]`) plus `consumes:` for what it
-  ships. A deploy that checks out the whole repository redeploys on
-  every commit.
+- **A deploy reads its scripts, not the source**: its `checkout:`
+  lists `deploy` (or `charts/app` and `scripts/deploy.sh`), plus
+  `consumes:` for what it ships. A deploy that checks out the whole
+  repository redeploys on every commit.
 - **Override a default only on purpose**, with a comment:
-  `kind: task` + `skip: built` (a costly check whose inputs are all
-  checked out), `kind: deploy` + `skip: never` (always re-apply).
+  `job_type: task` + `skip: built` (a costly check whose inputs are all
+  checked out), `job_type: deploy` + `skip: never` (always re-apply).
 - **A job that reads nothing** (no checkout, no consumes, no secrets
   or config, no `image_from`, no `repos:`) and still skips runs once
   and then shows *no changes* forever: give it its inputs or

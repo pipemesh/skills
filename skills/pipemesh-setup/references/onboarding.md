@@ -134,7 +134,7 @@ after it turned into `:`:
 | --- | --- | --- |
 | `deploy_staging` in the repo's pipeline | `/github.com/acme/shop/-/pipeline` | `pipeline:github.com/acme/shop:pipeline:ref:refs/heads/main:job:deploy_staging` |
 | `build` in child pipeline `orders` | `/github.com/acme/shop/-/pipeline/orders` | `pipeline:github.com/acme/shop:pipeline:orders:ref:refs/heads/main:job:build` |
-| `compile` inside the body the pipeline's `build` job (`kind: workflow`) runs | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:ref:refs/heads/main:job:compile` |
+| `compile` inside the body the pipeline's `build` job (`job_type: workflow`) runs | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:ref:refs/heads/main:job:compile` |
 | `publish` in workflow `release`, on a tag | `/github.com/acme/shop/-/release` | `pipeline:github.com/acme/shop:release:ref:refs/tags/v1.2.3:job:publish` (trust with a `StringLike` on `…:release:ref:refs/tags/v*:job:publish`) |
 
 Contexts: `ref:refs/heads/<branch>` (pipeline revisions and push,
@@ -205,7 +205,7 @@ their queue. Images used on your runners need bash, git, curl and tar.
   most likely reads something its `checkout:` leaves out: the checkout
   is enforced. Add the path to the job's `checkout:` (or use `true`)
   and push again. The job's Rules tab on the board shows its effective
-  kind, checkout and skip, and where each came from.
+  job type, checkout and skip, and where each came from.
 - Tag-triggered workflows fire for tags pushed from now on; existing
   tags are history.
 - Pull requests opened after that get check runs named
@@ -238,7 +238,7 @@ There is no per-job approval key in the definition. What Pipemesh offers:
 - If every production deploy must be approved by a person, keep that
   approval where it already lives: run the production deploy on a
   GitHub Actions workflow whose `environment:` has required reviewers
-  (`kind: deploy` with `github_actions: deploy.yml` and a generous
+  (`job_type: deploy` with `github_actions: deploy.yml` and a generous
   `timeout_seconds`); Pipemesh waits for the run, which waits for the
   approval.
 
@@ -248,5 +248,5 @@ existing approval silently.
 ### Editor support (optional)
 
 The schema modeline at the top of each file gives validation in any
-editor using yaml-language-server; in VS Code add
-`"yaml.customTags": ["!include scalar", "!ref scalar"]`.
+editor using yaml-language-server; in VS Code add `!include scalar`
+and `!ref scalar` to the `yaml.customTags` setting.

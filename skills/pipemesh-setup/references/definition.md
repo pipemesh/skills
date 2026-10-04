@@ -3,10 +3,17 @@
 Condensed from pipemesh.io/docs/pipeline-yaml and /docs/release-flow.
 When something here and the live docs disagree, the docs win.
 
-Contents: file layout · registration · triggers & inputs · bodies ·
-job keys · kinds · checkout · skip · executors · kind: workflow and
-kind: pipeline · ordering · matrix · components · other repositories ·
-renaming jobs · removed keys · editor validation
+Contents: file layout · types · registration · triggers & inputs ·
+bodies · job keys · job types · checkout · skip · executors ·
+job_type: workflow and job_type: pipeline · ordering · matrix ·
+components · other repositories · renaming jobs · removed keys ·
+editor validation
+
+Every example here is block style, and so is every file you write:
+one `- item` per line for a list, one `key: value` per line for a map,
+never `[a, b]` or `{ a: b }` (an empty `[]` or `{}` is the one
+exception). Inline YAML quoted in a sentence or a table below is
+shorthand only.
 
 ## File layout
 
@@ -19,27 +26,34 @@ directly or via other definitions. An unreached key is a load error
 
 ```yaml
 # yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json
-build_body: !include .pipemesh/build.yaml        # a file brought in whole
+build_body: !include .pipemesh/build.yaml        # a file brought in whole (it says type: workflow)
 
 pipeline:                                         # your definition: a body
-  stages: [build, staging]
+  type: pipeline                                  # it stands alone, so it says its shape
+  stages:
+    - build
+    - staging
   jobs:
     build:
-      kind: workflow                              # runs build_body as one node
+      job_type: workflow                          # runs build_body as one node
       stage: build
       body: !ref build_body
     deploy_staging:
-      kind: deploy                                # checks out nothing by default…
+      job_type: deploy                            # checks out nothing by default…
       stage: staging
-      consumes: [build/compile/dist]              # …ships what the build produced
-      checkout: [deploy]                          # …with the scripts it runs
+      consumes:
+        - build/compile/dist                      # …ships what the build produced
+      checkout:
+        - deploy                                  # …with the scripts it runs
       script: ./deploy/run.sh staging
 
 pipemesh:
   pipelines:
     pipeline: !ref pipeline
   workflows:
-    checks: { body: !ref build_body, on: pull_request }
+    checks:
+      body: !ref build_body
+      on: pull_request
 ```
 
 - `!include <path>`: a `.yaml`/`.yml` file, path from the repository
@@ -55,17 +69,92 @@ pipemesh:
   `.pipemesh/<name>.yaml` (and components in `.pipemesh/components/`).
   Pipemesh reads these files itself; jobs don't need them checked out.
 
+## Types: what shape a structure has
+
+`type:` names a structure's shape: `job`, `workflow`, `pipeline` or
+`component`. (What a *job* is — build, deploy, … — is its `job_type:`,
+a different key; see Job types.)
+
+- **Required where a structure stands alone**: a root definition in
+  `pipemesh.yaml` that is a body or a job, any other `!ref` target used
+  as one, every file reached with `!include` that is a body or a job,
+  and every component. A standalone structure without `type:` is a load
+  error naming its shape.
+- **Optional where the position fixes the shape** — a job written
+  inline under `jobs:`, a body written inline under `body:`, an inline
+  registration entry — and checked when given.
+- **Plain data has none**: a cache definition, a list of script lines,
+  a map of helper values reached with `!ref` or `!include`.
+
+It is checked where the structure is used:
+
+| used as | must be |
+| --- | --- |
+| an entry of `jobs:` | `type: job` |
+| `pipemesh.pipelines.<name>` (or its `body:`) | `type: pipeline` |
+| `pipemesh.workflows.<name>` (or its `body:`) | `type: workflow` |
+| `body:` of a `job_type: workflow` job | `type: workflow` |
+| `body:` of a `job_type: pipeline` job | `type: pipeline` |
+| `uses:` / a `setup:` step's `uses:` | `type: component` |
+
+A mismatch is a load error naming both sides — "job `orders` is
+`job_type: workflow`, so its body must be `type: workflow`;
+`.pipemesh/service.yaml` is `type: pipeline` — to hand revisions to it,
+write `job_type: pipeline`". One `type: workflow` body can back a
+workflow registration and any number of `job_type: workflow` jobs; a
+`type: pipeline` body backs the pipeline or `job_type: pipeline` jobs.
+No body is both.
+
+```yaml
+# .pipemesh/lint.yaml — a job kept in its own file
+type: job
+job_type: build
+stage: verify
+checkout:
+  - src
+script: make lint
+```
+
+```yaml
+# pipemesh.yaml — using it
+lint: !include .pipemesh/lint.yaml
+pipeline:
+  type: pipeline
+  stages:
+    - verify
+  jobs:
+    lint: !ref lint
+pipemesh:
+  pipelines:
+    pipeline: !ref pipeline
+```
+
 ## Registration
 
 ```yaml
 pipemesh:
   pipelines:
-    pipeline: !ref pipeline            # a body (!ref / !include / inline) or { body: … }
+    pipeline: !ref pipeline            # a type: pipeline body (!ref, !include or inline), or body: under the entry
   workflows:
-    checks:  { body: !include .pipemesh/ci.yaml, on: pull_request }
-    release: { body: !include .pipemesh/release.yaml, on: tag, tags: ["v*"] }
-    smoke:   { body: !include .pipemesh/smoke.yaml }       # no trigger = manual-only
+    checks:
+      body: !include .pipemesh/ci.yaml # a type: workflow body
+      on: pull_request
+    release:
+      body: !include .pipemesh/release.yaml
+      on: tag
+      tags:
+        - "v*"
+    smoke:
+      body: !include .pipemesh/smoke.yaml   # no trigger = manual-only
 ```
+
+`pipemesh:` holds `pipelines:` and `workflows:`; the section says what
+a registration is, and the body's `type:` must agree with it. Triggers
+(`on:`, `cron:`, `tags:`, `targets:`, `inputs:`) sit on the
+registration entry, never in a body, so one body serves a registration
+and a delegating job alike. `type:` belongs to the body, not to an
+entry that has `body:`; an entry written inline (its own `stages:` and
+`jobs:`) may carry it.
 
 - **One pipeline per repository**, named `pipeline` (its URL is
   `/github.com/<org>/<repo>/-/pipeline`). It takes no triggers: every
@@ -83,8 +172,8 @@ pipemesh:
 | `on:` | filter | meaning |
 | --- | --- | --- |
 | `push` | — | a new head on the **repository's branch** (runs beside the pipeline's revision) |
-| `pull_request` | `targets: [main]` (exact branch names) | each PR head, and merge-queue groups |
-| `tag` | `tags: ["v*"]` (`*` and `?` globs) | a pushed tag |
+| `pull_request` | `targets:` — a list of exact branch names (`main`) | each PR head, and merge-queue groups |
+| `tag` | `tags:` — a list of `*`/`?` globs (`"v*"`) | a pushed tag |
 | `schedule` | `cron: "0 3 * * *"` | UTC; always quote the cron |
 | `manual` | — | explicit manual trigger (no `on:` at all is also manual-only) |
 
@@ -98,10 +187,20 @@ are mutually exclusive. Several triggers on one entry share one history:
 ```yaml
 release:
   body: !include .pipemesh/release.yaml
-  inputs: { channel: { default: stable, description: "Release channel" } }
+  inputs:
+    channel:
+      default: stable
+      description: Release channel
   triggers:
-    stable:  { on: tag, tags: ["v*"] }
-    nightly: { on: schedule, cron: "0 3 * * *", inputs: { channel: nightly } }
+    stable:
+      on: tag
+      tags:
+        - "v*"
+    nightly:
+      on: schedule
+      cron: "0 3 * * *"
+      inputs:
+        channel: nightly
 ```
 
 `inputs:` declares names and defaults; triggers supply values; an
@@ -110,37 +209,39 @@ value on every trigger. Values arrive in the run as variables.
 
 ## Bodies
 
-A body is `stages:` (a list, required), `jobs:` (a map, required),
+A body is `type:` (`workflow` or `pipeline`; required when the body
+stands alone), `stages:` (a list, required), `jobs:` (a map, required),
 optional `variables:` (body-wide), and for pipelines optional `repos:`.
-Nothing else — a body has no `kind:` of its own. The position types
-it: the same body can back a workflow entry, a `kind: workflow` job,
-or the pipeline.
+Nothing else — no `kind:`, no triggers. A `type: workflow` body can
+back a workflow entry and `job_type: workflow` jobs at once; a
+`type: pipeline` body backs the pipeline or `job_type: pipeline` jobs.
 
 ## Job keys
 
 | key | what it does |
 | --- | --- |
-| `kind` | what the job is: `build`, `deploy`, `task` (the default), `workflow`, `pipeline` — sets its `checkout:` and `skip:` defaults and where it may appear |
+| `type` | the shape, `job`: required when the job stands alone (its own file, a root key reached with `!ref`), optional inline under `jobs:` |
+| `job_type` | what the job is: `build`, `deploy`, `task` (the default), `workflow`, `pipeline` — sets its `checkout:` and `skip:` defaults and where it may appear |
 | `stage` | **required**; must be one of the body's `stages`. Places the job on the board — does **not** order execution |
-| `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the kind |
-| `skip` | `unchanged` \| `built` \| `never` — when it may skip. Default from the kind |
+| `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the job type |
+| `skip` | `unchanged` \| `built` \| `never` — when it may skip. Default from the job type |
 | `script` | shell, as a block scalar (`|`) or a list of lines; runs in `bash` |
 | `before_script` / `after_script` | joined with `script` into one shell script under `set -e`: `after_script` does **not** run when `script` fails |
 | `uses` / `with` | run a component instead of a script |
-| `github_actions` | run the job as a GitHub Actions workflow and wait for it: `deploy.yml` or `{ workflow, ref, inputs, artifacts }` |
-| `setup` | list of `{ uses, with }` script fragments prepended to `script` |
-| `body` / `workload` | `kind: workflow` and `kind: pipeline` only: the body to run (`!ref`, `!include`, inline), or an existing workload's alias |
+| `github_actions` | run the job as a GitHub Actions workflow and wait for it: the file (`deploy.yml`), or a map of `workflow`, `ref`, `inputs`, `artifacts` |
+| `setup` | a list of steps, each `uses:` (and `with:`): script-only components prepended to `script` |
+| `body` / `workload` | `job_type: workflow` and `job_type: pipeline` only: the body to run (`!ref`, `!include`, inline; its `type:` matches the job type), or an existing workload's alias |
 | `image` | a **public** container image with bash, git, curl and tar (private images: build them with `publish:` + `image_from`) |
 | `image_from` | run in an image another job built: `<job>/<oci key>` (exclusive with `image`) |
 | `services` | loads but is **ignored** by the runners — start services in the script (patterns.md §12) |
-| `variables` | job variables (strings); on `kind: workflow`/`pipeline`, the child's variables |
+| `variables` | job variables (strings); on `job_type: workflow`/`pipeline`, the child's variables |
 | `secrets` | names of repository secrets the job receives (it gets no others) |
 | `config` | names of repository config variables (`UPPER_SNAKE_CASE`) the job receives |
 | `needs` | jobs to wait for (and inherit legacy `artifacts:` from) |
 | `consumes` | entries to receive: `<job>/<key>`; also an ordering edge and a fingerprint input |
 | `produces` | entries this job outputs (files, images, packages) |
 | `publish` | build + push an image from a directory; `key:` makes it an `oci` entry |
-| `cache` | `{ key, restore_keys, paths, policy }` — see artifacts-and-caching.md |
+| `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
 | `tags` | runner queue (first tag); untagged = hosted runners |
 | `matrix` | load-time expansion |
 | `timeout_seconds` | integer; default 3600 on Pipemesh runners — raise it for long builds and deploys |
@@ -154,21 +255,21 @@ letters, digits, `_` and `-`. Keys from other CI systems that **do not
 exist**: `when`, `only`, `except`, `rules`, `extends`, `dependencies`,
 `environment`, `if`, `runs-on`, `steps`, `env`, `strategy`,
 `continue-on-error` — see the migration references for what replaces
-each. Keys Pipemesh **removed**: `paths:`, `delegate:`, `trigger:`
-(see the end of this file).
+each. Keys Pipemesh **removed**: `kind:` (now `job_type:`), `paths:`,
+`delegate:`, `trigger:` (see the end of this file).
 
-## Kinds
+## Job types
 
-Every job has a kind; write it on every job. Absent `kind:` means
-`task`.
+Every job has a job type; write `job_type:` on every job. Absent
+`job_type:` means `task`.
 
-| kind | `checkout:` default | `skip:` default | allowed in | runs |
+| `job_type:` | `checkout:` default | `skip:` default | allowed in | runs |
 | --- | --- | --- | --- | --- |
 | `build` | `true` | `built` | pipelines, workflows | an executor |
 | `deploy` | `false` | `unchanged` | **pipelines** | an executor |
 | `task` (default) | `false` | `never` | pipelines, workflows | an executor |
-| `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows | a body, waited for |
-| `pipeline` | `false` (declared; checks nothing out) | `unchanged` | **pipelines** | a child pipeline, handed the revision |
+| `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows | a `type: workflow` body, waited for |
+| `pipeline` | `false` (declared; checks nothing out) | `unchanged` | **pipelines** | a child pipeline (a `type: pipeline` body), handed the revision |
 
 - **`build`** reads the source and is hermetic, so an earlier run with
   the same fingerprint can stand in for it. Tests, lint, image builds
@@ -183,27 +284,38 @@ Every job has a kind; write it on every job. Absent `kind:` means
 - **`task`** is anything else; it runs on every revision that reaches
   it (smoke tests, notifications, checks that read pull-request context
   such as a merge-base diff).
-- Every default can be overridden on the job (`kind: build` with
-  `checkout: [services/orders, libs]`; `kind: task` with `skip: built`).
-  The board's Rules tab shows each effective value and where it came
-  from: "skip: built (from kind: build)"; so does the checker.
-- `kind:` belongs to the job, never to a component: the same component
-  can be a build in one definition and a task in another.
+- Every default can be overridden on the job (a `job_type: build` whose
+  `checkout:` lists `services/orders` and `libs`; a `job_type: task`
+  with `skip: built`). The board's Rules tab shows each effective value
+  and where it came from: "skip: built (from job_type: build)"; so does
+  the checker.
+- `job_type:` belongs to the job, never to a component: the same
+  component can be a build in one definition and a task in another.
 
-Decision guide: decisions.md → *Choosing each job's kind*.
+Decision guide: decisions.md → *Choosing each job's job_type*.
 
 ## checkout: what a job reads
 
 ```yaml
-checkout: true                                          # the whole repository
-checkout: false                                         # nothing
-checkout: [services/orders, libs/money, package.json]   # exactly these
+checkout: true            # the whole repository
+```
+
+```yaml
+checkout: false           # nothing
+```
+
+```yaml
+checkout:                 # exactly these
+  - services/orders
+  - libs/money
+  - package.json
 ```
 
 - A path is itself and everything under it; globs cut finer
   (`apps/*/package.json`, `"**/Dockerfile"`). All paths are anchored at
   the repository root (for a job with `repo:`, that repository's root).
-  Quote entries that start with `*` or contain `${{ … }}`.
+  Quote an entry that starts with `*` (`"**/Dockerfile"`); others,
+  `${{ … }}` included, need no quotes in a block list.
 - **It is enforced.** On Pipemesh's hosted runners and on your own
   runners the job's workspace holds exactly what it checks out (a
   sparse checkout), plus what it consumes. A file the list leaves out
@@ -221,13 +333,13 @@ checkout: [services/orders, libs/money, package.json]   # exactly these
 - **Added for you** (to the workspace and the fingerprint): each file
   named by `${checksum:<file>}` in the job's cache key, and each
   `publish:` context and Dockerfile (a context of `.` makes it `true`).
-- One spelling per meaning: `checkout: []` and `checkout: ["**"]` are
-  load errors — write `false` / `true`.
+- One spelling per meaning: an empty list and a list holding only
+  `"**"` are load errors — write `false` / `true`.
 - A `github_actions:` job's checkout is read from its workflow file
   (see Executors); `checkout:` on the job overrides that.
-- `kind: workflow` takes no `checkout:` (its jobs say what they read);
-  on `kind: pipeline` it checks nothing out and only decides when the
-  revision is handed over.
+- `job_type: workflow` takes no `checkout:` (its jobs say what they
+  read); on `job_type: pipeline` it checks nothing out and only decides
+  when the revision is handed over.
 
 ## skip: when a job runs
 
@@ -261,23 +373,27 @@ A `build`, `deploy` or `task` names exactly one executor:
 - **`uses:`**: a component, which brings the execution keys.
 - **`github_actions:`**: an Actions workflow, dispatched and waited for.
   The executor is where the job runs, not what it is: a deploy that
-  runs on Actions is a `kind: deploy`.
+  runs on Actions is a `job_type: deploy`.
 
 ```yaml
 deploy_prod:
-  kind: deploy
+  job_type: deploy
   stage: production
-  needs: [smoke]
-  consumes: [build/dist]                   # fetched in the run with pipemesh/consume@v1
-  github_actions: { workflow: deploy.yml, inputs: { environment: production } }
-  # or: github_actions: deploy.yml
+  needs:
+    - smoke
+  consumes:
+    - build/dist                           # fetched in the run with pipemesh/consume@v1
+  github_actions:                          # or just: github_actions: deploy.yml
+    workflow: deploy.yml
+    inputs:
+      environment: production
 ```
 
 - `github_actions:` takes `workflow` (the file under
   `.github/workflows`, or its numeric id), `ref`, `inputs` (≤ 8;
   `pipemesh_sha` and `pipemesh_run` are reserved) and `artifacts`. The
-  job takes `consumes:` and `produces:` (`produces: { dist: file }`
-  imports the run's Actions artifact named `dist`), and none of
+  job takes `consumes:` and `produces:` (an entry `dist: file` under
+  `produces:` imports the run's Actions artifact named `dist`), and none of
   `script`, `setup`, `uses`, `image`, `image_from`, `services`, `tags`,
   `secrets`, `cache`, `publish`, `artifacts` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
@@ -293,20 +409,22 @@ deploy_prod:
 - The workflow must accept `workflow_dispatch` with inputs
   `pipemesh_sha` and `pipemesh_run` (patterns.md §6).
 
-## kind: workflow and kind: pipeline
+## job_type: workflow and job_type: pipeline
 
 ```yaml
 ci:                                      # run a body as one node; the job waits for its verdict
-  kind: workflow
+  job_type: workflow
   stage: verify
-  body: !include .pipemesh/ci.yaml       # or !ref <definition>, inline stages:/jobs:, or workload: <alias>
+  body: !include .pipemesh/ci.yaml       # a type: workflow body; or !ref <definition>, inline, or workload: <alias>
 
 orders:                                  # hand the revision to a child pipeline (pipelines only)
-  kind: pipeline
+  job_type: pipeline
   stage: dispatch
-  body: !ref service
-  variables: { SERVICE: orders }         # the child's variables
-  consumes: [graph/orders]               # what decides the hand-over
+  body: !ref service                     # a type: pipeline body
+  variables:                             # the child's variables
+    SERVICE: orders
+  consumes:
+    - graph/orders                       # what decides the hand-over
 ```
 
 - Both take `body:` (a body) or `workload:` (an existing workload's
@@ -314,22 +432,22 @@ orders:                                  # hand the revision to a child pipeline
   `timeout_seconds:`, `allow_failure:`, `matrix:` and `was:` — none of
   the executor keys, and no `produces:`: consumers name the body's
   entries by path (`ci/build/dist`).
-- **`kind: workflow`** combines its jobs' inputs (the union of their
+- **`job_type: workflow`** combines its jobs' inputs (the union of their
   checkouts, the config and secrets they read, what they consume from
   up here) and takes their skip: `built` when every job is a build, so
   a workflow of builds reuses as a whole, entries included; `never` as
   soon as one job runs every time. `skip: never` is its only override;
   `checkout:` on it is a load error. A body that works in another
   repository, or an existing `workload:`, runs every time. Inside a
-  workflow run, a nested `kind: workflow` job runs every time.
-- **`kind: pipeline`** passes the revision on only when its declared
+  workflow run, a nested `job_type: workflow` job runs every time.
+- **`job_type: pipeline`** passes the revision on only when its declared
   inputs changed: the graph job's entry it consumes, or the service's
   files listed in `checkout:` (which checks nothing out). Default:
   nothing — so declare one. `skip:` is `unchanged` (default) or `never`.
   It settles as *Dispatched*; the child promotes the revision on its
   own board.
-- Inside a body, `consumes: [../build/jar]` names the parent's `build`
-  job's `jar` entry (the `kind: workflow`/`pipeline` job consumes it
+- Inside a body, a consume of `../build/jar` names the parent's `build`
+  job's `jar` entry (the `job_type: workflow`/`pipeline` job consumes it
   too).
 - The child lives under the parent: `…/repo/-/pipeline/<job>`.
 
@@ -349,45 +467,68 @@ that needs staging still consumes the build's output itself.
 
 ```yaml
 test:
-  kind: build
+  job_type: build
   stage: test
   matrix:
-    stream: [aws, docker]
-    arch: [amd64, arm64]            # 2×2 = 4 jobs: test[stream=aws,arch=amd64], …
-  checkout: ["streams/${{ matrix.stream }}"]
+    stream:
+      - aws
+      - docker
+    arch:                           # 2×2 = 4 jobs: test[stream=aws,arch=amd64], …
+      - amd64
+      - arm64
+  checkout:
+    - streams/${{ matrix.stream }}
   script: ./test.sh ${{ matrix.stream }} --arch ${{ matrix.arch }}
 ```
 
 - `as: jobs` (default): sibling jobs, each with its own cursor — one
-  broken lane doesn't block the others. `needs: [test]` = all variants;
-  `test[stream=aws]` = a slice; `test[stream=aws, arch=arm64]` = one.
-  Structured form: `{ job: test, matrix: { stream: aws } }`.
+  broken lane doesn't block the others. Under `needs:`, `test` = all
+  variants; `test[stream=aws]` = a slice; `test[stream=aws, arch=arm64]`
+  = one. The structured form names the job and the slice:
+
+  ```yaml
+  needs:
+    - job: test
+      matrix:
+        stream: aws
+  ```
 - `as: workflow`: one node over a generated child workflow, one verdict
   (the CI-matrix shape); reference only the node.
 - `${{ matrix.x }}` interpolates at load (also in `checkout:`);
   shell-safe names are also variables (`$stream`). Values may not
   contain `[ ] , =`. Cap: 256.
-- Lane-to-lane: `needs: ["test[stream=${{ matrix.stream }}]"]`.
+- Lane-to-lane: a `needs:` item `test[stream=${{ matrix.stream }}]`.
+  In a block list a selector needs no quotes; quote an item that starts
+  with a YAML indicator (`*`, `&`, `!`, `[`, `{`).
 
 ## Components
 
 ```yaml
 deploy_production:
-  kind: deploy
+  job_type: deploy
   stage: production
-  consumes: [image/app]                              # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
-  checkout: [charts/app]                            # what the component's script reads
-  uses: ./.pipemesh/components/eks-deploy.yaml      # or a registry component: aws/role@1
-  with: { cluster: prod, replicas: 4 }
+  consumes:
+    - image/app                                     # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
+  checkout:
+    - charts/app                                    # what the component's script reads
+  uses: ./.pipemesh/components/eks-deploy.yaml      # a type: component file, or a registry component: aws/role@1
+  with:
+    cluster: prod
+    replicas: 4
 ```
 
 ```yaml
 # .pipemesh/components/eks-deploy.yaml
 # yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-component.schema.json
-component: eks-deploy
+type: component
+name: eks-deploy
 params:
-  cluster:  { type: string, required: true }
-  replicas: { type: int, default: 2 }               # types: string, int, bool, list
+  cluster:
+    type: string                                    # a param's type: string, int, bool, list
+    required: true
+  replicas:
+    type: int
+    default: 2
 job:
   image: ghcr.io/acme/deploy-tools@sha256:…   # helm + kubectl, and bash, git, curl, tar
   script: |
@@ -395,12 +536,15 @@ job:
       --set image="$PIPEMESH_IMAGE_APP" --set replicas=${{ params.replicas }}
 ```
 
-- Placement keys (`kind`, `checkout`, `stage`, `needs`, `skip`, `tags`,
-  timeouts, `consumes`, `produces`, `secrets`, `cache`, `publish`) stay
-  on the job; execution keys (`script`, `setup`, `image`, `services`)
-  belong to the component — declaring one beside `uses:` is a load
-  error. The job's `checkout:` must cover what the component's script
-  reads.
+- A component starts with `type: component` and `name: <name>`; the
+  rest is `params:` and `job:`. (A param's `type:` is its value type,
+  unrelated to the component's shape.)
+- Placement keys (`type`, `job_type`, `checkout`, `stage`, `needs`,
+  `skip`, `tags`, timeouts, `consumes`, `produces`, `secrets`, `cache`,
+  `publish`) stay on the job; execution keys (`script`, `setup`,
+  `image`, `services`) belong to the component — declaring one beside
+  `uses:` is a load error. The job's `checkout:` must cover what the
+  component's script reads.
 - No inheritance or overriding. To vary behaviour, add a param.
 - `setup:` steps must be script-only components; they run before
   `script`.
@@ -426,17 +570,24 @@ Registry components (`uses: <stream>/<name>@<major>`, resolved from
 
 ```yaml
 pipeline:
+  type: pipeline
   repos:
     infra: github.com/acme/infra           # followed on the branch it was added with
-  stages: [deploy]
+  stages:
+    - deploy
   jobs:
     apply:
-      kind: deploy
+      job_type: deploy
       stage: deploy
       repo: infra                           # works in infra: its checkout is infra's paths
-      checkout: [envs/staging, modules]
+      checkout:
+        - envs/staging
+        - modules
       repos:
-        $self: { checkout: [config], mount: app }   # the pipeline's own repository at ./app, only config/
+        $self:                              # the pipeline's own repository at ./app, only config/
+          mount: app
+          checkout:
+            - config
       script: cd envs/staging && terraform apply -auto-approve
 ```
 
@@ -455,7 +606,7 @@ the change, keep history with `was:`:
 
 ```yaml
 deploy_prod:
-  kind: deploy
+  job_type: deploy
   was: deploy_production     # takes over its cursor and runs, once
 ```
 
@@ -468,19 +619,21 @@ replacement:
 
 | Old | Now |
 | --- | --- |
-| `paths: [src]` | `checkout: [src]` (`paths: []` → `checkout: false`; no `paths:` → `checkout: true`, which only a build defaults to) |
-| `delegate: { type: workflow, params: { body: …, variables: … } }` | `kind: workflow` with `body:` and `variables:` on the job |
-| `delegate: { type: pipeline, params: { body: …, variables: … } }` | `kind: pipeline` with `body:`, `variables:` and what decides the hand-over (`consumes:` or `checkout:`) |
-| `delegate: { type: github_actions, params: { workflow, inputs } }` | `github_actions: { workflow, inputs }` on a build, deploy or task |
+| `kind:` on a job | `job_type:`, same values and defaults (`job_type:` and `kind:` together is an error too) |
+| `component: <name>` at the top of a component | `type: component` and `name: <name>` |
+| a standalone body, job or component without `type:` | the load error names its shape: add `type: workflow`, `pipeline`, `job` or `component` |
+| `kind: pipeline` / `kind: workflow` at the top of a body | `type: pipeline` / `type: workflow`, matching where the body is used |
+| `paths:` on a job | `checkout:` (an empty `paths:` → `checkout: false`; no `paths:` → `checkout: true`, which only a build defaults to) |
+| `delegate:` with `type: workflow` or `type: pipeline` and `params:` (`body`, `variables`) | `job_type: workflow` / `job_type: pipeline` with `body:`, `variables:` (and, for a pipeline, what decides the hand-over: `consumes:` or `checkout:`) on the job |
+| `delegate:` with `type: github_actions` and `params:` (`workflow`, `inputs`) | `github_actions:` (`workflow`, `inputs`) on a build, deploy or task |
 | `trigger:` | as `delegate:` |
-| `kind: pipeline` / `kind: workflow` at the top of a body | nothing: the position says it |
-| `repos: { x: { paths: […], mount } }` on a job | `repos: { x: { checkout: […], mount } }` |
-| a job without `kind:` reading the whole repository | it is now a `task` that checks out nothing: give it its kind and checkout |
+| `paths:` in a mount under a job's `repos:` | `checkout:` |
+| a job without a job type reading the whole repository | it is a `task` that checks out nothing: give it its `job_type:` and checkout |
 
 ## Editor validation
 
 Add the modeline at the top of each file — definition:
 `# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json`;
-`.pipemesh/*.yaml` bodies: `…/pipemesh-body.schema.json`; components:
-`…/pipemesh-component.schema.json`. In VS Code settings:
-`"yaml.customTags": ["!include scalar", "!ref scalar"]`.
+`.pipemesh/*.yaml` bodies: `…/pipemesh-body.schema.json`;
+components: `…/pipemesh-component.schema.json`. In VS Code settings, add
+`!include scalar` and `!ref scalar` to `yaml.customTags`.

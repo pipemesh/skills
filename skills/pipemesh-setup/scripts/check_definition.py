@@ -5,10 +5,13 @@ Usage:
     python3 check_definition.py [REPO_ROOT] [--quiet]   # default: the current directory
 
 Reads REPO_ROOT/pipemesh.yaml, resolves `!include` and `!ref` the way the
-Pipemesh loader does, and reports what the loader would reject (ERROR) and
-what is legal but probably not what you meant (WARN). Then it lists every
-job's effective kind, checkout and skip policy, and where each came from
-(--quiet leaves that list out). Exit code 1 when there is at least one ERROR.
+Pipemesh loader does, checks every structure's `type:` against where it is
+used (DESIGN-V73), and reports what the loader would reject (ERROR) and
+what is legal but probably not what you meant (WARN, including flow-style
+`[a, b]` / `{ a: b }` collections: definitions are written in block style).
+Then it lists every job's effective job_type, checkout and skip policy, and
+where each came from (--quiet leaves that list out). Exit code 1 when there
+is at least one ERROR.
 
 This mirrors the loader's documented rules; it is not the loader. The
 authoritative check happens when the definition lands on the branch
@@ -48,11 +51,20 @@ CONFIG_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 CONSUME_PATH = re.compile(r"^[A-Za-z0-9_\-\[\]=,./${}\s]+$")
 CHECKSUM = re.compile(r"\$\{checksum:([^}]+)}")
 
-BODY_KEYS = {"stages", "jobs", "variables", "repos"}
+BODY_KEYS = {"type", "stages", "jobs", "variables", "repos"}
 
-# DESIGN-V72: every job has a kind. It sets the job's checkout: and skip:
-# defaults and where the job may appear; absent kind: is a task.
-KINDS = ("build", "deploy", "task", "workflow", "pipeline")
+# DESIGN-V73: type: names a structure's shape. It is required where a
+# structure stands alone (a root definition reached with !ref, a !ref
+# target, an !include'd file, every component) and optional where its
+# position fixes it (inline under jobs:, an inline body:, an inline
+# registration entry). Plain data (a cache spec, a list of script lines)
+# has none.
+SHAPES = ("job", "workflow", "pipeline", "component")
+
+# DESIGN-V72/V73: every job has a job_type (V72 called it kind:). It sets
+# the job's checkout: and skip: defaults and where the job may appear;
+# absent job_type: is a task.
+JOB_TYPES = ("build", "deploy", "task", "workflow", "pipeline")
 SCRIPT_KINDS = {"build", "deploy", "task"}       # run on an executor
 CHILD_KINDS = {"workflow", "pipeline"}                          # run a body
 KIND_DEFAULTS = {                                               # (checkout, skip)
@@ -60,16 +72,17 @@ KIND_DEFAULTS = {                                               # (checkout, ski
     "deploy": (False, "unchanged"),
     "task": (False, "never"),
 }
-CHILD_KIND_KEYS = {"kind", "body", "workload", "variables", "stage", "needs", "consumes",
-                   "checkout", "skip", "timeout_seconds", "allow_failure", "matrix", "was"}
+CHILD_KIND_KEYS = {"type", "job_type", "kind", "body", "workload", "variables", "stage", "needs",
+                   "consumes", "checkout", "skip", "timeout_seconds", "allow_failure", "matrix", "was"}
 JOB_KEYS = {
     "stage", "script", "before_script", "after_script", "needs", "tags",
     "variables", "image", "image_from", "skip", "config", "repo",
     "repos", "services", "secrets", "artifacts", "cache", "publish",
     "allow_failure", "timeout_seconds", "retry", "matrix", "uses", "with",
     "setup", "produces", "consumes", "was",
-    "kind", "checkout", "github_actions", "body", "workload",
+    "type", "job_type", "checkout", "github_actions", "body", "workload",
 }
+COMPONENT_KEYS = {"type", "name", "params", "job"}
 SCRIPT_KEYS = ("script", "setup", "before_script", "after_script")
 EXECUTION_KEYS = {"script", "setup", "image", "services", "before_script", "after_script"}
 # An Actions run is the whole execution: nothing that only means something
@@ -80,7 +93,7 @@ GHA_EXCLUSIVE = ("script", "before_script", "after_script", "uses", "setup", "ta
 PLACEMENT_KEYS = {"stage", "needs", "tags", "trigger", "timeout_seconds", "retry", "allow_failure",
                   "variables", "artifacts", "cache", "publish", "secrets", "matrix", "when",
                   "produces", "consumes", "image_from", "paths", "skip", "config", "repo", "repos",
-                  "kind", "checkout", "github_actions"}
+                  "kind", "checkout", "github_actions", "type", "job_type"}
 EVENT_KINDS = {"push", "pull_request", "tag", "schedule", "manual"}
 FILTER_FOR_KIND = {"branches": "push", "targets": "pull_request", "tags": "tag", "cron": "schedule"}
 WORKFLOW_ENTRY_KEYS = {"body", "stages", "jobs", "variables", "inputs", "on",
@@ -88,14 +101,14 @@ WORKFLOW_ENTRY_KEYS = {"body", "stages", "jobs", "variables", "inputs", "on",
 PIPELINE_ENTRY_KEYS = {"body", "stages", "jobs", "variables", "inputs", "repos"}
 TRIGGER_KEYS = {"on", "branches", "targets", "tags", "cron", "inputs"}
 
-BODY_KIND_GONE = ("a body's own kind: is gone (DESIGN-V72) — where it is registered (pipelines: or "
-                  "workflows:) or the job that runs it (kind: workflow / kind: pipeline) says what it is")
+BODY_KIND_GONE = ("a body's kind: is gone — a body says its shape with type: workflow or type: pipeline, "
+                  "and must agree with where it is used (DESIGN-V73)")
 
 # Keys the grammar removed, with what replaces them.
 REMOVED_JOB_KEYS = {
     "paths": "paths: is now checkout: — true (the whole repository), false (nothing) or a list of paths",
-    "trigger": "trigger: is gone — kind: workflow or kind: pipeline with body:, or github_actions: on a "
-               "build, deploy or task",
+    "trigger": "trigger: is gone — job_type: workflow or job_type: pipeline with body:, or github_actions: "
+               "on a build, deploy or task",
     "sources": "sources: is now checkout:",
     "rules": "rules: is gone — checkout: lists the files the job reads, skip: says when it may skip",
 }
@@ -110,10 +123,10 @@ FOREIGN_KEY_HINTS = {
     "except": "only:/except: have no equivalent: filter with the workflow's trigger and checkout:",
     "extends": "no extends: — reuse a whole job with !ref, or vary it with a component (uses:/with:)",
     "dependencies": "dependencies: is implicit — entries flow along consumes: edges",
-    "environment": "no environment: key — kind: deploy marks a deploy; the job name says where it deploys",
+    "environment": "no environment: key — job_type: deploy marks a deploy; the job name says where it deploys",
     "interruptible": "not needed — a newer revision supersedes queued ones on its own",
     "resource_group": "not needed — a pipeline job runs one revision at a time",
-    "runs-on": "use tags: [<queue>] for your own runners, or nothing for hosted runners",
+    "runs-on": "use tags: (a list; its first item is your runners' queue), or nothing for hosted runners",
     "steps": "a job has script: (shell), not steps:",
     "env": "use variables:",
     "if": "no if: — use triggers, checkout: and skip:",
@@ -124,10 +137,9 @@ FOREIGN_KEY_HINTS = {
     "continue-on-error": "write allow_failure: true",
     "container": "write image:",
     "outputs": "use produces: (files, images, packages) and consumes: on the other side",
-    "type": "a job's type is kind: (build, deploy, task, workflow, pipeline)",
 }
 
-KIND_HINTS = {
+JOB_TYPE_HINTS = {
     "test": "a test is a build (it reads the source and is hermetic), or a task when it reads "
             "pull-request context such as a merge-base diff",
     "lint": "a lint is a build", "check": "a check is a build, or a task when it must run every time",
@@ -135,9 +147,11 @@ KIND_HINTS = {
     "publish": "a publish is a deploy (in a pipeline) or a task (in a workflow)",
     "package": "packaging is a build (checkout: false when it reads only what it consumes)",
     "transform": "transform is gone: a job that turns what it consumes into something else is a build with checkout: false",
-    "delegate": "kind: workflow or kind: pipeline run a body; github_actions: is an executor",
+    "delegate": "job_type: workflow or job_type: pipeline run a body; github_actions: is an executor",
     "github_actions": "github_actions: is an executor key on a build, deploy or task",
     "image": "an image build is a build", "notify": "a notification is a task",
+    "job": "type: job is the shape (and optional under jobs:); job_type: says what the job is",
+    "component": "a component is reached with uses:; job_type: says what the job that uses it is",
 }
 
 # Registry components (ghcr.io/pipemesh/components): name -> (required, optional) params.
@@ -224,17 +238,57 @@ def make_loader(file: str):
 
 
 def check_no_anchors(text: str, file: str):
+    """Anchors, aliases and merge keys are load errors; flow-style collections are a style warning."""
+    flow_lines, flow_depth = [], 0
     try:
-        for ev in yaml.parse(text, Loader=yaml.SafeLoader):
-            line = ev.start_mark.line + 1
-            if isinstance(ev, yaml.AliasEvent):
-                R.error(f"{file}:{line}", "YAML aliases (*x) are not supported — define it once and use !ref <path>")
-            elif getattr(ev, "anchor", None):
-                R.error(f"{file}:{line}", f"YAML anchors (&{ev.anchor}) are not supported — use !ref <path>")
-            elif isinstance(ev, yaml.ScalarEvent) and ev.value == "<<" and ev.plain:
-                R.error(f"{file}:{line}", "merge keys (<<:) are not supported — nothing overrides; use !ref or a component")
+        events = list(yaml.parse(text, Loader=yaml.SafeLoader))
     except yaml.YAMLError:
-        pass  # reported by the load
+        return  # reported by the load
+    for i, ev in enumerate(events):
+        line = ev.start_mark.line + 1
+        if isinstance(ev, yaml.AliasEvent):
+            R.error(f"{file}:{line}", "YAML aliases (*x) are not supported — define it once and use !ref <path>")
+        elif getattr(ev, "anchor", None):
+            R.error(f"{file}:{line}", f"YAML anchors (&{ev.anchor}) are not supported — use !ref <path>")
+        elif isinstance(ev, yaml.ScalarEvent) and ev.value == "<<" and ev.plain:
+            R.error(f"{file}:{line}", "merge keys (<<:) are not supported — nothing overrides; use !ref or a component")
+        if isinstance(ev, yaml.CollectionStartEvent) and ev.flow_style:
+            empty = i + 1 < len(events) and isinstance(events[i + 1], yaml.CollectionEndEvent)
+            if flow_depth == 0 and not empty:   # [] and {} have no block form
+                flow_lines.append(line)
+            flow_depth += 1
+        elif isinstance(ev, yaml.CollectionEndEvent) and flow_depth:
+            flow_depth -= 1
+    if flow_lines:
+        shown = ", ".join(str(n) for n in flow_lines[:12]) + (", …" if len(flow_lines) > 12 else "")
+        R.warn(f"{file}:{flow_lines[0]}",
+               f"flow-style collection{'s' if len(flow_lines) > 1 else ''} ([a, b] / {{ a: b }}) on "
+               f"line{'s' if len(flow_lines) > 1 else ''} {shown} — prefer block style: one '- item' per line "
+               "for a list, one 'key: value' per line for a map (only an empty [] or {} stays inline)")
+
+
+class Sourced(dict):
+    """A mapping reached with !include or !ref. It stands alone, so as a job, a
+    body or a component it must say its shape with type: (DESIGN-V73).
+    origin: {how: include|ref, file, path, at}."""
+    origin: dict = {}
+
+
+def keep_origin(new: dict, old) -> dict:
+    """Carries a Sourced mapping's origin over to a rebuilt copy."""
+    if isinstance(old, Sourced):
+        out = Sourced(new)
+        out.origin = old.origin
+        return out
+    return new
+
+
+def sourced(value, origin: dict):
+    if isinstance(value, dict) and not isinstance(value, Sourced):   # the innermost origin wins
+        out = Sourced(value)
+        out.origin = origin
+        return out
+    return value
 
 
 class Repo:
@@ -301,7 +355,7 @@ def bool_key_fix(m: dict, where: str, trigger_position: bool) -> dict:
             R.error(where, f"a key read as boolean {k} (an unquoted on/off/yes/no) — quote it")
         else:
             out[str(k)] = v
-    return out
+    return keep_origin(out, m)
 
 
 class Resolver:
@@ -335,7 +389,8 @@ class Resolver:
             node = {str(k): v for k, v in node.items()}[seg]
         self.stack.append(key)
         try:
-            return self.resolve(node, file_root)
+            return sourced(self.resolve(node, file_root),
+                           {"how": "ref", "file": t.file, "path": path, "at": where})
         finally:
             self.stack.pop()
 
@@ -353,7 +408,8 @@ class Resolver:
         saved = self.current_root_key
         self.current_root_key = None
         try:
-            return self.resolve(data, data)
+            return sourced(self.resolve(data, data),
+                           {"how": "include", "file": t.value, "path": None, "at": where})
         finally:
             self.current_root_key = saved
             self.stack.pop()
@@ -475,7 +531,7 @@ def check_selector(where, ref_name, sel, jobs):
         R.error(where, f"'{ref_name}' has no matrix, so it takes no selector")
         return
     if mas == "workflow":
-        R.error(where, f"'{ref_name}' is a matrix as: workflow — depend on the node itself: needs: [{ref_name}]")
+        R.error(where, f"'{ref_name}' is a matrix as: workflow — depend on the node itself: list {ref_name} under needs:")
         return
     for k, v in sel.items():
         if k not in axes:
@@ -517,8 +573,92 @@ def output_paths(job: dict) -> list:
 
 
 def job_kind(job: dict) -> str:
-    k = job.get("kind")
-    return k if isinstance(k, str) and k in KINDS else "task"
+    """The job's job_type (an old kind: is read too, after it has been reported)."""
+    k = job.get("job_type", job.get("kind"))
+    return k if isinstance(k, str) and k in JOB_TYPES else "task"
+
+# ---------------------------------------------------------------------------
+# type: — a structure's shape, checked where it is used (DESIGN-V73 §2)
+
+MISSING_TYPE: set = set()
+
+
+def origin_where(v) -> str:
+    o = v.origin
+    return o["file"] if o["how"] == "include" else f"{o['file']} › {o['path']}"
+
+
+def origin_label(v):
+    """How a standalone structure is named in a message, or None for an inline one."""
+    o = getattr(v, "origin", None)
+    if not o:
+        return None
+    return o["file"] if o["how"] == "include" else f"`{o['path']}` ({o['file']})"
+
+
+def standing(v) -> str:
+    o = v.origin
+    if o["how"] == "include":
+        return f"an included file (!include at {o['at']})"
+    if "." not in o["path"]:
+        return f"a root definition reached with !ref (at {o['at']})"
+    return f"a !ref target (at {o['at']})"
+
+
+def check_shape(where: str, value: dict, expected: str, needs: str, subject: str, hints: dict) -> bool:
+    """value is used where a `expected` belongs. `needs` says why ("job orders is job_type:
+    workflow"); `subject` names what must have the type ("its body"); hints maps a wrong
+    declared type to the way out. Returns False on a mismatch."""
+    declared = value.get("type")
+    label = origin_label(value)
+    if declared is None:
+        if label:
+            key = (value.origin["file"], value.origin["path"])
+            if key not in MISSING_TYPE:
+                MISSING_TYPE.add(key)
+                R.error(origin_where(value), f"stands alone — {standing(value)} — so it says its shape: add "
+                                             f"type: {expected} at its top (used at {where}: {needs})")
+        return True
+    if declared == expected:
+        return True
+    it = label or ("it" if expected == "job" else "the inline body")
+    if not isinstance(declared, str) or declared not in SHAPES:
+        what = label or (subject if expected == "job" else "the inline body")
+        R.error(where, f"{what} is type: {declared}, which is no shape (type: is job, workflow, pipeline or "
+                       f"component); {needs}, so {subject} must be type: {expected}"
+                       + (f" — what a job is goes in job_type: {declared}" if declared in JOB_TYPES else ""))
+        return False
+    hint = hints.get(declared, "")
+    R.error(where, f"{needs}, so {subject} must be type: {expected}; {it} is type: {declared}"
+                   + (f" — {hint}" if hint else ""))
+    return False
+
+
+def body_hints(kind: str) -> dict:
+    """The way out when a job_type: workflow / pipeline job runs a body of another shape."""
+    return {
+        "pipeline": "to hand revisions to it, write job_type: pipeline (a pipeline's job only)"
+                    if kind == "workflow" else "",
+        "workflow": "to run it as one node and wait for it, write job_type: workflow" if kind == "pipeline" else "",
+        "job": "a job is an entry of jobs:, not a body",
+        "component": "a component is run with uses:, not as a body",
+    }
+
+
+def registration_hints(section_kind: str) -> dict:
+    other = "pipeline" if section_kind == "workflow" else "workflow"
+    return {
+        other: f"register a {other} under pipemesh.{other}s",
+        "job": "a job is an entry of a body's jobs:, not a workload",
+        "component": "a component is run with uses:, not registered",
+    }
+
+
+JOB_ENTRY_HINTS = {
+    "workflow": "a workflow is the body: of a job_type: workflow job",
+    "pipeline": "a pipeline is the body: of a job_type: pipeline job (or registered under pipemesh.pipelines)",
+    "component": "a component is run with uses: on a job",
+}
 
 
 def check_consume_path(where, raw, body_ctx, want_oci=False):
@@ -544,12 +684,12 @@ def check_consume_path(where, raw, body_ctx, want_oci=False):
     producer = jobs[name]
     pkind = job_kind(producer)
     if pkind == "pipeline":
-        R.error(where, f"consumes '{raw}': '{name}' is a kind: pipeline job — it hands the revision to a child "
+        R.error(where, f"consumes '{raw}': '{name}' is a job_type: pipeline job — it hands the revision to a child "
                        "pipeline, which exports nothing")
         return
     if pkind == "workflow":
         if len(segs) < 3:
-            R.error(where, f"consumes '{raw}': '{name}' is a kind: workflow job — name a job of its body "
+            R.error(where, f"consumes '{raw}': '{name}' is a job_type: workflow job — name a job of its body "
                            f"({name}/<job>/<key>)")
             return
         child = body_ctx["children"].get(name)
@@ -572,15 +712,26 @@ def check_consume_path(where, raw, body_ctx, want_oci=False):
             R.error(where, f"image_from '{raw}' is a {outs[segs[1]]} entry; it must name an oci entry (an image)")
 
 
+LOADED_COMPONENTS: dict = {}
+
+
 def load_local_component(uses, repo: Repo):
-    path = os.path.join(repo.root, uses[2:])
+    rel = relative(uses)
+    if rel in LOADED_COMPONENTS:
+        return LOADED_COMPONENTS[rel]
+    path = os.path.join(repo.root, rel)
     if not os.path.isfile(path):
-        return None, f"component file not found: {uses}"
-    with open(path, encoding="utf-8") as fh:
+        out = None, f"component file not found: {uses}"
+    else:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        check_no_anchors(text, rel)
         try:
-            return yaml.safe_load(fh), None
+            out = yaml.safe_load(text), None
         except yaml.YAMLError as e:
-            return None, f"{uses} is not valid YAML: {e}"
+            out = None, f"{uses} is not valid YAML: {e}"
+    LOADED_COMPONENTS[rel] = out
+    return out
 
 
 def check_component_use(where, uses, with_, repo: Repo, setup_step=False):
@@ -593,16 +744,38 @@ def check_component_use(where, uses, with_, repo: Repo, setup_step=False):
         if err:
             R.error(where, err)
             return
-        if not isinstance(comp, dict) or "component" not in comp or "job" not in comp:
-            R.error(where, f"{uses} must declare component: <name> and job:")
+        if not isinstance(comp, dict):
+            R.error(where, f"{uses} must be a mapping: type: component, name:, params: and job:")
             return
-        unknown = set(comp) - {"component", "params", "job"}
+        # DESIGN-V73: a component says its shape and its name.
+        if "component" in comp:
+            R.error(where, f"{uses}: the component: marker is gone — write type: component and "
+                           f"name: {comp['component']} (DESIGN-V73)")
+        elif comp.get("type") is None:
+            R.error(where, f"{uses}: a component stands alone, so it says its shape — add type: component "
+                           "and name: <name> at its top")
+        if comp.get("type") is not None and comp["type"] != "component":
+            declared = comp["type"]
+            hint = {"job": "a job file is placed under jobs: with !include, not run with uses:",
+                    "workflow": "a workflow is the body: of a job_type: workflow job",
+                    "pipeline": "a pipeline is the body: of a job_type: pipeline job"}.get(str(declared), "")
+            R.error(where, f"uses: takes a component, so {uses} must be type: component; it is type: {declared}"
+                           + (f" — {hint}" if hint else ""))
+            return
+        if comp.get("type") == "component" and not (isinstance(comp.get("name"), str) and comp["name"].strip()):
+            R.error(where, f"{uses}: type: component names itself with name: <name>")
+        if "job" not in comp:
+            R.error(where, f"{uses} must declare its execution under job:")
+            return
+        unknown = set(comp) - COMPONENT_KEYS - {"component"}
         if unknown:
-            R.error(where, f"{uses}: unknown top-level key(s) {sorted(unknown)} (component/params/job)")
+            R.error(where, f"{uses}: unknown top-level key(s) {sorted(unknown)} (type, name, params, job)")
         if isinstance(comp.get("job"), dict):
             for k in sorted(PLACEMENT_KEYS & set(comp["job"])):
+                why = " (kind: is now job_type:)" if k == "kind" else ""
                 R.error(where, f"{uses}: '{k}' is a placement key and belongs to the job that uses the "
-                               "component (kind:, checkout:, stage:, … are the job's), never to the component")
+                               f"component (job_type:, checkout:, stage:, … are the job's), never to the "
+                               f"component{why}")
         params = comp.get("params") or {}
         required = {k for k, v in params.items() if isinstance(v, dict) and v.get("required")}
         optional = set(params) - required
@@ -649,7 +822,7 @@ def gha_params(jw, raw):
             if k not in ("workflow", "ref", "inputs", "artifacts"):
                 R.error(f"{jw}.github_actions", f"unknown key '{k}' — allowed: workflow, ref, inputs, artifacts")
         return raw
-    R.error(jw, "github_actions: takes the workflow file (deploy.yml) or { workflow, ref, inputs, artifacts }")
+    R.error(jw, "github_actions: takes the workflow file (deploy.yml) or a mapping with workflow:, ref:, inputs: and artifacts:")
     return None
 
 
@@ -791,7 +964,7 @@ def checkout_paths(where, checkout):
             out.append(p.strip())
         return out
     if isinstance(checkout, str):
-        R.error(where, f"checkout: is true, false or a list of paths — write checkout: [{checkout}]")
+        R.error(where, f"checkout: is true, false or a list of paths — write it as a list, with '- {checkout}' on the line under checkout:")
         return None
     R.error(where, "checkout: is true (the whole repository), false (nothing) or a list of paths")
     return None
@@ -837,7 +1010,7 @@ def check_mounts(jw, job, repos):
         if alias != "$self" and alias not in repos:
             R.error(f"{jw}.repos", f"'{alias}' is not declared under the body's repos:")
         if not isinstance(spec, dict):
-            R.error(mw, "a mount is { mount: <dir>, checkout: true | [paths] }")
+            R.error(mw, "a mount is a mapping with mount: <dir> and checkout: (true or a list of paths)")
             continue
         for k in spec:
             if k == "paths":
@@ -928,18 +1101,20 @@ def check_script_reads(jw, job, eff, repo: Repo, produced: list):
 
 def check_body(where: str, body, kind: str, repo: Repo, delegated: bool, depth: int = 0):
     """Checks a body used as `kind` ('pipeline' or 'workflow'); returns what its jobs read,
-    combined (for a kind: workflow job that runs it), or None."""
+    combined (for a job_type: workflow job that runs it), or None. The caller has checked
+    the body's type: against that use (check_shape)."""
     if not isinstance(body, dict):
-        R.error(where, "a body is a mapping with stages: and jobs:")
+        R.error(where, "a body is a mapping with type:, stages: and jobs:")
         return None
     body = bool_key_fix(body, where, False)
     for k in body:
         if k == "kind":
             R.error(where, BODY_KIND_GONE)
         elif k == "live":
-            R.error(where, "live: is gone — a body registered under pipelines: (or run by kind: pipeline) is a pipeline")
+            R.error(where, "live: is gone — a body says type: pipeline (registered under pipemesh.pipelines, or "
+                           "run by a job_type: pipeline job)")
         elif k not in BODY_KEYS:
-            R.error(where, f"unknown key '{k}' — a body has stages, jobs, variables and repos")
+            R.error(where, f"unknown key '{k}' — a body has type, stages, jobs, variables and repos")
     stages = body.get("stages")
     if not isinstance(stages, list) or not stages:
         R.error(where, "stages: is required (a list)")
@@ -956,7 +1131,7 @@ def check_body(where: str, body, kind: str, repo: Repo, delegated: bool, depth: 
                     "is followed on the branch it was added with")
     if repos and kind != "pipeline":
         R.warn(where, "repos: is a pipeline's (every revision pins a version of each declared repository)")
-    jobs = {}
+    jobs, mismatched = {}, set()
     for name, job in jobs_raw.items():
         name = str(name)
         if name.startswith("."):
@@ -966,6 +1141,8 @@ def check_body(where: str, body, kind: str, repo: Repo, delegated: bool, depth: 
         if not isinstance(job, dict):
             R.error(f"{where}.jobs.{name}", "a job is a mapping")
             continue
+        if not check_shape(f"{where}.jobs.{name}", job, "job", "jobs: holds jobs", name, JOB_ENTRY_HINTS):
+            mismatched.add(name)   # another shape: checking its keys would only repeat the mismatch
         jobs[name] = bool_key_fix(job, f"{where}.jobs.{name}", False)
 
     ctx = {"jobs": jobs, "delegated": delegated, "children": {}}
@@ -981,10 +1158,12 @@ def check_body(where: str, body, kind: str, repo: Repo, delegated: bool, depth: 
     for name, job in jobs.items():
         jw = f"{where}.jobs.{name}"
         edges[name] = set()
+        if name in mismatched:
+            continue
         eff = check_job(jw, name, job, kind, repo, ctx, repos, stages, depth)
         rule_lines.append((name, eff))
 
-        # What a kind: workflow job running this body reads (DESIGN-V72 §6).
+        # What a job_type: workflow job running this body reads (DESIGN-V72 §6).
         if job.get("repo") is not None or job.get("repos"):
             summary["other_repos"] = True
         if eff["skip_model"] != "built":
@@ -1049,17 +1228,24 @@ def check_body(where: str, body, kind: str, repo: Repo, delegated: bool, depth: 
 
 
 def check_job(jw, name, job, body_kind, repo: Repo, ctx, repos, stages, depth):
-    """Checks one job; returns its effective kind, checkout and skip, with where each came from."""
-    raw_kind = job.get("kind")
-    eff = {"kind": "task", "kind_src": "no kind:", "paths": [], "co_src": "", "added": [],
+    """Checks one job; returns its effective job_type, checkout and skip, with where each came from."""
+    raw_kind = job.get("job_type")
+    if "kind" in job:   # DESIGN-V73: kind: is job_type:'s old name
+        if "job_type" in job:
+            R.error(jw, "job_type: and kind: are the same key — kind: is gone; keep job_type: alone (DESIGN-V73)")
+        else:
+            R.error(jw, f"kind: is now job_type: — write job_type: {job['kind']} (DESIGN-V73)")
+            raw_kind = job["kind"]
+    eff = {"kind": "task", "kind_src": "no job_type:", "paths": [], "co_src": "", "added": [],
            "skip": "never", "skip_model": "never", "skip_src": "", "secrets": job.get("secrets"),
            "config": job.get("config"), "consumes": list(as_list(job.get("consumes")))}
     if raw_kind is not None:
-        if raw_kind in KINDS:
+        if raw_kind in JOB_TYPES:
             eff["kind"], eff["kind_src"] = raw_kind, ""
         else:
-            hint = KIND_HINTS.get(str(raw_kind))
-            R.error(jw, f"kind: '{raw_kind}' — kind: is one of {', '.join(KINDS)}" + (f" ({hint})" if hint else ""))
+            hint = JOB_TYPE_HINTS.get(str(raw_kind))
+            R.error(jw, f"job_type: '{raw_kind}' — job_type: is one of {', '.join(JOB_TYPES)}"
+                        + (f" ({hint})" if hint else ""))
             eff["kind"] = "task"
     kind = eff["kind"]
     R.rules.append(None)                        # this job's slot in the report
@@ -1072,17 +1258,17 @@ def check_job(jw, name, job, body_kind, repo: Repo, ctx, repos, stages, depth):
             d = job["delegate"]
             t = d.get("type") if isinstance(d, dict) else None
             if t in CHILD_KINDS:
-                R.error(jw, f"delegate: {{ type: {t} }} is now kind: {t} with body: (or workload:) and "
+                R.error(jw, f"delegate: (type: {t}) is now job_type: {t} with body: (or workload:) and "
                             "variables: on the job")
             elif t == "github_actions":
-                R.error(jw, "delegate: { type: github_actions } is now github_actions: on a build, "
-                            "deploy or task (github_actions: deploy.yml, or { workflow, ref, inputs, artifacts })")
+                R.error(jw, "delegate: (type: github_actions) is now github_actions: on a build, deploy or task "
+                            "(github_actions: deploy.yml, or a mapping with workflow:, ref:, inputs:, artifacts:)")
             else:
-                R.error(jw, "delegate: is gone — kind: workflow or kind: pipeline with body:, or github_actions: "
-                            "on a build, deploy or task")
+                R.error(jw, "delegate: is gone — job_type: workflow or job_type: pipeline with body:, or "
+                            "github_actions: on a build, deploy or task")
         elif k in REMOVED_JOB_KEYS:
             R.error(jw, REMOVED_JOB_KEYS[k])
-        elif k not in JOB_KEYS:
+        elif k not in JOB_KEYS and k != "kind":
             hint = FOREIGN_KEY_HINTS.get(k)
             R.error(jw, f"unknown key '{k}'" + (f" — {hint}" if hint else
                     f" — allowed: {', '.join(sorted(JOB_KEYS))}"))
@@ -1092,13 +1278,14 @@ def check_job(jw, name, job, body_kind, repo: Repo, ctx, repos, stages, depth):
     elif str(stage) not in stages:
         R.error(jw, f"references unknown stage '{stage}' (stages: {stages})")
 
-    # Where the kind may appear
+    # Where the job_type may appear
     in_workflow = body_kind == "workflow"
     if in_workflow and kind == "deploy":
-        R.error(jw, "kind: deploy belongs to a pipeline: a deploy's last success, rollback and holds exist "
+        R.error(jw, "job_type: deploy belongs to a pipeline: a deploy's last success, rollback and holds exist "
                     "only there; a one-off deploy in a workflow (a preview, a manual hotfix) is a task")
     if in_workflow and kind == "pipeline":
-        R.error(jw, "kind: pipeline belongs to a pipeline: only a pipeline hands its revisions to a child pipeline")
+        R.error(jw, "job_type: pipeline belongs to a pipeline: only a pipeline hands its revisions to a child "
+                    "pipeline")
 
     skip = job.get("skip")
     if skip is not None and skip not in ("unchanged", "built", "never"):
@@ -1136,7 +1323,7 @@ def check_job(jw, name, job, body_kind, repo: Repo, ctx, repos, stages, depth):
 def check_script_job(jw, name, job, kind, skip, eff, repo: Repo, ctx):
     for k in ("body", "workload"):
         if k in job:
-            R.error(jw, f"{k}: belongs to kind: workflow or kind: pipeline (this job is a {kind})")
+            R.error(jw, f"{k}: belongs to job_type: workflow or job_type: pipeline (this job is a {kind})")
     actions = "github_actions" in job
     params = gha_params(jw, job["github_actions"]) if actions else None
     script_key = "script" if "script" in job else next((k for k in SCRIPT_KEYS if k in job and "uses" not in job), None)
@@ -1163,7 +1350,7 @@ def check_script_job(jw, name, job, kind, skip, eff, repo: Repo, ctx):
         paths, why = derive_actions_checkout((params or {}).get("workflow"), repo)
         eff["paths"], eff["co_src"], eff["derived"] = paths, f"read from {why}", True
     else:
-        eff["paths"], eff["co_src"] = (list(WHOLE) if default_co else []), f"from kind: {kind}"
+        eff["paths"], eff["co_src"] = (list(WHOLE) if default_co else []), f"from job_type: {kind}"
     if not actions and eff["paths"] != WHOLE:
         eff["paths"] = list(eff["paths"])
         eff["added"] = platform_reads(job, eff["paths"])
@@ -1172,7 +1359,7 @@ def check_script_job(jw, name, job, kind, skip, eff, repo: Repo, ctx):
     if skip is not None:
         eff["skip"], eff["skip_src"] = skip, "declared"
     else:
-        eff["skip"], eff["skip_src"] = default_skip, f"from kind: {kind}"
+        eff["skip"], eff["skip_src"] = default_skip, f"from job_type: {kind}"
     eff["skip_model"] = eff["skip"]
 
     if actions:
@@ -1191,7 +1378,7 @@ def check_script_job(jw, name, job, kind, skip, eff, repo: Repo, ctx):
         R.error(jw, "with: without uses:")
     for i, step in enumerate(as_list(job.get("setup"))):
         if not isinstance(step, dict) or "uses" not in step or set(step) - {"uses", "with"}:
-            R.error(f"{jw}.setup[{i}]", "each setup step is { uses:, with: }")
+            R.error(f"{jw}.setup[{i}]", "each setup step is a mapping with uses: (and with:)")
             continue
         check_component_use(f"{jw}.setup[{i}]", step["uses"], step.get("with"), repo, setup_step=True)
 
@@ -1199,11 +1386,11 @@ def check_script_job(jw, name, job, kind, skip, eff, repo: Repo, ctx):
 def check_child_job(jw, name, job, kind, skip, eff, repo: Repo, depth, in_workflow):
     for k in job:
         if k in JOB_KEYS and k not in CHILD_KIND_KEYS and k != "produces":
-            R.error(jw, f"kind: {kind} takes body: or workload:, variables:, stage:, needs:, consumes:, skip:, "
+            R.error(jw, f"job_type: {kind} takes body: or workload:, variables:, stage:, needs:, consumes:, skip:, "
                         f"timeout_seconds:, allow_failure:, matrix:{', checkout:' if kind == 'pipeline' else ''} "
                         f"and was:; not {k}: (a body's jobs run the work)")
     if ("body" in job) == ("workload" in job):
-        R.error(jw, f"kind: {kind} needs exactly one of body: (!ref, !include or inline stages:/jobs:) or "
+        R.error(jw, f"job_type: {kind} needs exactly one of body: (!ref, !include or inline stages:/jobs:) or "
                     "workload: (an existing workload's alias)")
     if "variables" in job and not isinstance(job["variables"], dict):
         R.error(jw, "variables: must be a mapping (the child's variables)")
@@ -1211,7 +1398,9 @@ def check_child_job(jw, name, job, kind, skip, eff, repo: Repo, depth, in_workfl
         R.error(jw, "workload: takes a workload alias")
     child = None
     if "body" in job:
-        if isinstance(job["body"], dict):
+        if not isinstance(job["body"], dict):
+            R.error(jw, "body: takes a body — !ref, !include or inline stages:/jobs: — not a name or a path")
+        elif check_shape(jw, job["body"], kind, f"job {name} is job_type: {kind}", "its body", body_hints(kind)):
             start = len(R.rules)
             child = check_body(f"{jw}.body", job["body"], kind, repo, delegated=True, depth=depth + 1)
             key = (kind, jw.rsplit(".jobs.", 1)[0], repr(job["body"]))
@@ -1220,16 +1409,14 @@ def check_child_job(jw, name, job, kind, skip, eff, repo: Repo, depth, in_workfl
                 R.rules.append("  " * (depth + 3) + f"(the same body as {SEEN_BODIES[key]})")
             else:
                 SEEN_BODIES[key] = name
-        else:
-            R.error(jw, "body: takes a body — !ref, !include or inline stages:/jobs: — not a name or a path")
     if child:
         eff["consumes"] = list(dict.fromkeys(eff["consumes"] + child["handed_up"]))
 
     if kind == "workflow":
         if "checkout" in job:
-            R.error(jw, "checkout: on kind: workflow — the workflow's jobs say what they read")
+            R.error(jw, "checkout: on job_type: workflow — the workflow's jobs say what they read")
         if skip is not None and skip != "never":
-            R.error(jw, "kind: workflow skips by its jobs' rules: built when every job is a build, never otherwise; "
+            R.error(jw, "job_type: workflow skips by its jobs' rules: built when every job is a build, never otherwise; "
                         "skip: never is the only override")
         if child:
             eff["paths"], eff["co_src"] = child["paths"], "its jobs' checkouts combined"
@@ -1259,11 +1446,11 @@ def check_child_job(jw, name, job, kind, skip, eff, repo: Repo, depth, in_workfl
             paths = checkout_paths(jw, job["checkout"])
             eff["paths"], eff["co_src"] = (paths if paths is not None else []), "declared — it checks nothing out"
         else:
-            eff["paths"], eff["co_src"] = [], "from kind: pipeline"
+            eff["paths"], eff["co_src"] = [], "from job_type: pipeline"
         if skip is not None and skip not in ("unchanged", "never"):
-            R.error(jw, "kind: pipeline takes skip: unchanged or never")
+            R.error(jw, "job_type: pipeline takes skip: unchanged or never")
         eff["skip"] = skip if skip in ("unchanged", "never") else "unchanged"
-        eff["skip_src"] = "declared" if skip in ("unchanged", "never") else "from kind: pipeline"
+        eff["skip_src"] = "declared" if skip in ("unchanged", "never") else "from job_type: pipeline"
         eff["skip_model"] = eff["skip"]
 
 
@@ -1274,10 +1461,10 @@ def check_common(jw, name, job, kind, eff, repo: Repo, ctx, repos):
     produces = job.get("produces")
     if produces is not None:
         if kind in CHILD_KINDS:
-            R.error(jw, f"a kind: {kind} job produces nothing itself — consumers name the entries of its body's "
+            R.error(jw, f"a job_type: {kind} job produces nothing itself — consumers name the entries of its body's "
                         f"jobs by path ({name}/<job>/<key>)")
         elif not isinstance(produces, dict):
-            R.error(jw, "produces: maps keys to a type (file, oci, npm), a path, or { type, path, expire, when }")
+            R.error(jw, "produces: maps keys to a type (file, oci, npm), a path, or a mapping with type, path, expire, when")
         else:
             for k, v in produces.items():
                 if not OUTPUT_KEY.match(str(k)):
@@ -1295,7 +1482,7 @@ def check_common(jw, name, job, kind, eff, repo: Repo, ctx, repos):
                 vtype = v if isinstance(v, str) and v in ("file", "oci", "npm") else (v.get("type") if isinstance(v, dict) else None)
                 vpath = v.get("path") if isinstance(v, dict) else (None if vtype else v)
                 if (vtype in (None, "file")) and not vpath and not actions:
-                    R.error(f"{jw}.produces.{k}", "a file entry needs a path (dist: dist, or { path: dist }) — "
+                    R.error(f"{jw}.produces.{k}", "a file entry needs a path (dist: dist, or path: dist under the key) — "
                                                   "only a github_actions: job takes `file` alone (the run's artifact)")
                 if vtype in ("oci", "npm") and not actions:
                     keyed = any(isinstance(p, dict) and p.get("key") == k for p in as_list(job.get("publish")))
@@ -1306,7 +1493,7 @@ def check_common(jw, name, job, kind, eff, repo: Repo, ctx, repos):
                 R.error(jw, "produces replaces artifacts — declare the files as a file entry")
     for i, p in enumerate(as_list(job.get("publish"))):
         if not isinstance(p, dict):
-            R.error(f"{jw}.publish[{i}]", "publish entries are mappings { repo?, context, dockerfile?, args?, key? }")
+            R.error(f"{jw}.publish[{i}]", "publish entries are mappings: context: (and repo:, dockerfile:, args:, key:)")
             continue
         for kk in p:
             if kk not in ("repo", "dockerfile", "context", "args", "key"):
@@ -1373,7 +1560,7 @@ def check_common(jw, name, job, kind, eff, repo: Repo, ctx, repos):
         R.error(jw, f"repo: '{job['repo']}' is not declared under the body's repos: ({', '.join(repos) or 'none'})")
     if job.get("repos") is not None:
         if not isinstance(job["repos"], dict):
-            R.error(f"{jw}.repos", "maps an alias (or $self) to { mount: <dir>, checkout: true | [paths] }")
+            R.error(f"{jw}.repos", "maps an alias (or $self) to a mount: mount: <dir> and checkout: (true or a list of paths)")
         else:
             check_mounts(jw, job, repos)
     if job.get("was") is not None and job.get("matrix") is not None:
@@ -1414,11 +1601,11 @@ def check_common(jw, name, job, kind, eff, repo: Repo, ctx, repos):
 
 def rule_line(name, eff, depth):
     pad = "  " * (depth + 2)
-    kind = eff["kind"] + (" (no kind:)" if eff["kind_src"] else "")
+    kind = eff["kind"] + (" (no job_type:)" if eff["kind_src"] else "")
     paths = eff["paths"]
     co = "true" if paths == WHOLE else "false" if not paths else "[" + ", ".join(paths) + "]"
     added = "".join(f"; {p} added by {why}" for p, why in eff.get("added") or [])
-    return (f"{pad}{name} — kind: {kind} · checkout: {co} ({eff['co_src']}{added}) · "
+    return (f"{pad}{name} — job_type: {kind} · checkout: {co} ({eff['co_src']}{added}) · "
             f"skip: {eff['skip']} ({eff['skip_src']})")
 
 # ---------------------------------------------------------------------------
@@ -1547,8 +1734,8 @@ def main():
         if k != "pipemesh" and not DEFINITION_NAME.match(k):
             R.error("pipemesh.yaml", f"definition name '{k}' must be letters, digits, _ and - (it is a path segment for !ref)")
     if "pipemesh" not in raw:
-        R.error("pipemesh.yaml", "registers its workloads under the pipemesh: key — "
-                "pipemesh: { pipelines: { pipeline: !ref <definition> }, workflows: { <name>: { body: …, on: … } } }")
+        R.error("pipemesh.yaml", "registers its workloads under the pipemesh: key — pipelines: (pipeline: "
+                "!ref <definition>) and workflows: (<name>: with body: and on:)")
         return finish(quiet)
 
     res = Resolver(repo)
@@ -1613,6 +1800,9 @@ def main():
                 for k in entry:
                     if k == "kind":
                         R.error(w, BODY_KIND_GONE)
+                    elif k == "type":
+                        R.error(w, "type: belongs to the body, not to the registration entry — write it at the "
+                                   f"top of the body (type: {kind})")
                     elif k not in allowed:
                         extra = " — pipelines take no triggers: every commit on the repository's branch is a revision" \
                             if kind == "pipeline" and k in ("on", "triggers", "branches", "cron", "tags", "targets") else ""
@@ -1624,16 +1814,20 @@ def main():
                     R.error(w, "body: takes !ref <definition>, !include <path>, or inline stages:/jobs:")
                     continue
                 if "repos" in entry:
-                    body = dict(body, repos=entry["repos"])
-                check_body(w, body, kind, repo, delegated=False)
+                    body = keep_origin(dict(body, repos=entry["repos"]), body)
+                if check_shape(w, body, kind, f"pipemesh.{section} registers {section}", f"{name}'s body",
+                               registration_hints(kind)):
+                    check_body(w, body, kind, repo, delegated=False)
             elif isinstance(entry, dict) and ("jobs" in entry or "stages" in entry):
-                body = {k: v for k, v in entry.items() if k in BODY_KEYS or k == "kind"}
+                body = keep_origin({k: v for k, v in entry.items() if k in BODY_KEYS or k == "kind"}, entry)
                 rest = {k: v for k, v in entry.items() if k not in BODY_KEYS and k != "kind"}
                 rest["body"] = body
                 for k in rest:
                     if k not in (WORKFLOW_ENTRY_KEYS if kind == "workflow" else PIPELINE_ENTRY_KEYS):
                         R.error(w, f"unknown key '{k}'")
-                check_body(w, body, kind, repo, delegated=False)
+                if check_shape(w, body, kind, f"pipemesh.{section} registers {section}", f"{name}'s body",
+                               registration_hints(kind)):
+                    check_body(w, body, kind, repo, delegated=False)
                 entry = rest
             elif isinstance(entry, dict) and kind == "pipeline":
                 check_body(w, entry, kind, repo, delegated=False)
@@ -1642,7 +1836,7 @@ def main():
                 R.error(w, "needs a body — body: !ref <definition>, body: !include <path>, or inline stages/jobs")
                 continue
             else:
-                R.error(w, "takes a body (!ref, !include, inline) or { body: … }")
+                R.error(w, "takes a body (!ref, !include or inline) or a mapping with body:")
                 continue
             if kind == "workflow":
                 kinds = set()
@@ -1659,7 +1853,7 @@ def main():
                 elif "triggers" in entry:
                     trigs = entry["triggers"]
                     if not isinstance(trigs, dict):
-                        R.error(w, "triggers: is a named map of { on: … }")
+                        R.error(w, "triggers: is a named map of triggers, each with on:")
                     else:
                         for tname, trig in trigs.items():
                             check_trigger(f"{w}.triggers.{tname}", trig, declared)
@@ -1677,7 +1871,7 @@ def finish(quiet=False):
     rules = [r for r in R.rules if r]
     if rules and not quiet:
         print("\nEffective rules (what each job is, what it checks out, when it may skip; "
-              "a job without kind: is a task):")
+              "a job without job_type: is a task):")
         for line in rules:
             print(("  " + line) if not line.startswith(" ") else line)
     print(f"\n{len(R.errors)} error(s), {len(R.warnings)} warning(s)")

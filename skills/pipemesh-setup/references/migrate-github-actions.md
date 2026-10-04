@@ -1,7 +1,7 @@
 # Migrating from GitHub Actions
 
 Two strategies, and they mix per job. Either way the job gets a
-`kind:` — the executor is where it runs, not what it is.
+`job_type:` — the executor is where it runs, not what it is.
 
 - **Port** a job: its steps become a Pipemesh job's `script:` on
   Pipemesh runners. You get the full model — `produces:`/`consumes:`
@@ -12,7 +12,7 @@ Two strategies, and they mix per job. Either way the job gets a
   dispatches the workflow and waits for it. Minimal change; Actions
   secrets, environments and marketplace actions keep working; Pipemesh
   orchestrates the promotion and shows the run's jobs as tasks. A
-  deploy that runs on Actions is still `kind: deploy`. See
+  deploy that runs on Actions is still `job_type: deploy`. See
   patterns.md §6.
 
 Port by default when the steps are shell commands plus the usual setup
@@ -25,10 +25,10 @@ runners), or when the user wants the smallest first step.
 
 | Actions `on:` | Pipemesh |
 | --- | --- |
-| `push: branches: [main]` (build/deploy) | the **pipeline** (no trigger; it follows the default branch) |
-| `push: branches: [main]` (non-deploy side task) | workflow `on: push` (no `branches:` filter) |
-| `pull_request` / `pull_request_target` | workflow `on: pull_request` (`targets:` = `branches:` filter, exact names) |
-| `push: tags: ["v*"]` / `release: published` | workflow `on: tag`, `tags: ["v*"]` |
+| `push:` with `branches:` `main` (build/deploy) | the **pipeline** (no trigger; it follows the default branch) |
+| `push:` with `branches:` `main` (non-deploy side task) | workflow `on: push` (no `branches:` filter) |
+| `pull_request` / `pull_request_target` | workflow `on: pull_request` (`targets:` = the `branches:` filter, exact names) |
+| `push: tags:` (`"v*"`) / `release: published` | workflow `on: tag`, its `tags:` listing `"v*"` |
 | `schedule: - cron:` | workflow `on: schedule`, same cron, quoted (UTC in both) |
 | `workflow_dispatch` with `inputs` | workflow with no trigger (manual) and `inputs:` with defaults |
 | `push` to other branches | not watched — ask (see decisions.md) |
@@ -39,17 +39,18 @@ runners), or when the user wants the smallest first step.
 A workflow that runs on both `pull_request` and `push: main` (the usual
 `ci.yml`) splits in two: its jobs become the PR `checks` workflow, and
 the pipeline's build stage runs the same checks — either by running
-the same body as one node (`kind: workflow` with `body: !ref checks`)
-or by folding the tests into the pipeline's build job.
+the same `type: workflow` body as one node (`job_type: workflow` with
+`body: !ref checks`) or by folding the tests into the pipeline's build
+job.
 
 ## Jobs and steps
 
 | Actions | Pipemesh |
 | --- | --- |
-| `jobs.<id>` | a job with a `kind:` (decisions.md → *Choosing each job's kind*); ids become lowercase `[a-z0-9_-]` (`deploy-staging` → `deploy_staging` or keep the hyphen) |
+| `jobs.<id>` | a job with a `job_type:` (decisions.md → *Choosing each job's job_type*); ids become lowercase `[a-z0-9_-]` (`deploy-staging` → `deploy_staging` or keep the hyphen) |
 | `needs:` | `needs:` — plus `consumes:` where an output is passed |
 | `runs-on: ubuntu-*` | nothing (hosted runners); pick `image:` for the toolchain |
-| `runs-on: [self-hosted, gpu]` / `macos-*` / `windows-*` | `tags: [<queue>]` and a registered runner — or run the job on Actions (`github_actions:`) |
+| `runs-on:` self-hosted labels / `macos-*` / `windows-*` | `tags:` (the first is your runners' queue) and a registered runner — or run the job on Actions (`github_actions:`) |
 | `container: image` | `image:` |
 | `services:` | not supported (ignored): start it in the script — patterns.md §12 |
 | `steps: - run:` | lines of `script:` (one shell, `set -e`; `working-directory:` → `cd`; `shell: python` → `python - <<'EOF'`) |
@@ -59,11 +60,11 @@ or by folding the tests into the pipeline's build job.
 | `continue-on-error: true` | `allow_failure: true` |
 | `timeout-minutes: 30` | `timeout_seconds: 1800` (default 3600) |
 | `concurrency:` | not needed: one revision at a time per pipeline job, newer ones supersede |
-| `environment: production` | `kind: deploy` in the pipeline (the job name says where); approval rules → onboarding.md → Holding production. A PR preview environment is a `kind: task` in the PR workflow |
-| `outputs:` / `$GITHUB_OUTPUT` | a file entry (`produces: { meta: out/meta.env }`, consumer `source "$PIPEMESH_BUILD_META"`), or an `oci` entry for an image ref |
+| `environment: production` | `job_type: deploy` in the pipeline (the job name says where); approval rules → onboarding.md → Holding production. A PR preview environment is a `job_type: task` in the PR workflow |
+| `outputs:` / `$GITHUB_OUTPUT` | a file entry (`meta: out/meta.env` under `produces:`, consumer `source "$PIPEMESH_BUILD_META"`), or an `oci` entry for an image ref |
 | `permissions: id-token: write` | not needed: every Pipemesh job can request identity tokens |
-| reusable workflows (`uses: ./.github/workflows/x.yml`) | a body in `.pipemesh/` run by a `kind: workflow` job or reached with `!ref`/`!include`, or a component for parameterized jobs |
-| composite actions in the repo | a component in `.pipemesh/components/` (`setup:` for script fragments) |
+| reusable workflows (`uses: ./.github/workflows/x.yml`) | a `type: workflow` body in `.pipemesh/` run by a `job_type: workflow` job or reached with `!ref`/`!include`, or a component for parameterized jobs |
+| composite actions in the repo | a `type: component` in `.pipemesh/components/` (`setup:` for script fragments) |
 
 ## Common actions
 
@@ -72,10 +73,10 @@ or by folding the tests into the pipeline's build job.
 | `actions/checkout` | the job's `checkout:` — a job starts in a checkout of exactly what it lists. A plain `actions/checkout` is `checkout: true` (a build's default); its `sparse-checkout:` directories become the list; a job with no checkout step is `checkout: false` (a task's or deploy's default). History is always complete, so `fetch-depth: 0` needs nothing and `git merge-base` works on PR runs against `origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME` |
 | `actions/setup-node` / `setup-python` / `setup-go` / `setup-java` / `ruby/setup-ruby` | `image:` with that version (`node:22-bookworm`, `python:3.12-bookworm`, `golang:1.23-bookworm`, `gradle:8-jdk21`, `ruby:3.3-bookworm`); read `.nvmrc`/`node-version-file` for the version |
 | `cache: npm` / `pip` / `gradle` on a setup action, `actions/cache` | `cache:` keyed on the lockfile checksum, paths inside the workspace, one definition shared by the PR and default-branch jobs (artifacts-and-caching.md → Cache) |
-| `pnpm/action-setup` | `corepack enable` in the script (or `setup: [{ uses: node/pnpm@1 }]`) |
+| `pnpm/action-setup` | `corepack enable` in the script (or a `setup:` step `uses: node/pnpm@1`) |
 | `actions/upload-artifact` → `actions/download-artifact` | `produces:` on the producer → `consumes:` on the consumer |
-| `aws-actions/configure-aws-credentials` with `role-to-assume` | `setup: [{ uses: aws/role@1, with: { arn: …, region: … } }]`; the role's trust policy gains Pipemesh's issuer and subjects (onboarding.md §4) |
-| `aws-actions/configure-aws-credentials` with access keys | prefer `aws/role@1`; otherwise `secrets: [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]` |
+| `aws-actions/configure-aws-credentials` with `role-to-assume` | a `setup:` step `uses: aws/role@1` `with:` `arn` and `region` (below); the role's trust policy gains Pipemesh's issuer and subjects (onboarding.md §4) |
+| `aws-actions/configure-aws-credentials` with access keys | prefer `aws/role@1`; otherwise `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` under `secrets:` |
 | `aws-actions/amazon-ecr-login` | `aws ecr get-login-password … \| docker login …` in the script |
 | `docker/login-action` | `docker login` in the script with a secret |
 | `docker/setup-buildx-action`, `setup-qemu-action` | nothing on the default job image (buildx included) |
@@ -83,13 +84,29 @@ or by folding the tests into the pipeline's build job.
 | `azure/setup-helm`, `azure/setup-kubectl` | install the pinned binary in the script, or use an image that has it |
 | `google-github-actions/auth` (WIF) | a token from `$PIPEMESH_ID_TOKEN_REQUEST_URL` with the pool's audience, exchanged with `gcloud iam workload-identity-pools create-cred-config` — or a key in `secrets:` |
 | `hashicorp/setup-terraform` | install Terraform in the script or use a Debian-based image with it |
-| `slackapi/slack-github-action` (webhook) | `setup: [{ uses: slack/message@1, with: { text: … } }]` with `secrets: [SLACK_WEBHOOK]`, or a `curl` |
-| `codecov/codecov-action` | `setup: [{ uses: codecov/upload@1 }]` with `secrets: [CODECOV_TOKEN]` |
-| `dorny/paths-filter` + `if:` | `checkout:` on each job (and a `kind: pipeline` job per service in monorepos — patterns.md §7) |
-| `superfly/flyctl-actions` | `curl -L https://fly.io/install.sh \| sh` then `~/.fly/bin/flyctl deploy …` with `secrets: [FLY_API_TOKEN]` |
+| `slackapi/slack-github-action` (webhook) | a `setup:` step `uses: slack/message@1` `with:` `text:`, and `SLACK_WEBHOOK` under `secrets:` — or a `curl` |
+| `codecov/codecov-action` | a `setup:` step `uses: codecov/upload@1`, and `CODECOV_TOKEN` under `secrets:` |
+| `dorny/paths-filter` + `if:` | `checkout:` on each job (and a `job_type: pipeline` job per service in monorepos — patterns.md §7) |
+| `superfly/flyctl-actions` | `curl -L https://fly.io/install.sh \| sh` then `~/.fly/bin/flyctl deploy …`, with `FLY_API_TOKEN` under `secrets:` |
 | `vercel deploy` / `amondnet/vercel-action` | `npx vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN"` with secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` |
 | `softprops/action-gh-release` | `gh release create` with a `GH_TOKEN` secret (the Pipemesh App can't write to the repository) |
 | anything else | read its `action.yml`: port the commands it runs, or run the job on Actions (`github_actions:`); never guess silently — leave `# TODO(pipemesh): …` |
+
+The `role-to-assume` translation, in full:
+
+```yaml
+deploy_staging:
+  job_type: deploy
+  stage: staging
+  setup:
+    - uses: aws/role@1
+      with:
+        arn: arn:aws:iam::123456789012:role/deploy-staging
+        region: eu-west-1
+  checkout:
+    - deploy
+  script: ./deploy/deploy.sh staging
+```
 
 ## Expressions
 
@@ -147,12 +164,12 @@ Only if the user chose to keep a workflow on Actions:
   Narrow the deploy workflows' checkout to what they read, or set
   `checkout:` on the Pipemesh job (it overrides the derivation);
 - artifacts the Pipemesh side needs are uploaded with
-  `actions/upload-artifact` under the entry's key, and declared as
-  `produces: { <key>: file }` on the Pipemesh job;
+  `actions/upload-artifact` under the entry's key, and declared on the
+  Pipemesh job as `<key>: file` under `produces:`;
 - entries the run needs from Pipemesh (an image digest, a bundle) come
-  from `- uses: pipemesh/consume@v1` with
-  `permissions: { id-token: write, contents: read }`, after the
-  Pipemesh job declares them in `consumes:`.
+  from `- uses: pipemesh/consume@v1`, with `permissions:` granting
+  `id-token: write` and `contents: read`, after the Pipemesh job
+  declares them in `consumes:`.
 
 The checker (scripts/check_definition.py) verifies the dispatch inputs
 when the workflow file is in the checkout, and prints the checkout it

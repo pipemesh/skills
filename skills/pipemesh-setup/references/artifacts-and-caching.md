@@ -18,15 +18,21 @@ caches · runtime variables · legacy artifacts
 
 ```yaml
 build:
-  kind: build
+  job_type: build
   stage: build
-  checkout: [src, package.json, package-lock.json]
+  checkout:
+    - src
+    - package.json
+    - package-lock.json
   script: npm ci && npm run build
   produces:
     dist: dist                                  # short form: a path → a file entry
-    report: { path: coverage/lcov.info, expire: 7d, when: always }   # long form
-    image: oci                                  # a type: emitted at run time (see Images)
-    sdk: npm                                    # a type: emitted at run time
+    report:                                     # long form
+      path: coverage/lcov.info
+      expire: 7d
+      when: always
+    image: oci                                  # an entry type: emitted at run time (see Images)
+    sdk: npm                                    # an entry type: emitted at run time
 ```
 
 - A **file entry** is one path in the workspace: a file, a directory,
@@ -40,8 +46,10 @@ build:
 - The entry's digest is its content (a directory hashes its files'
   paths and contents, never timestamps). **Reproducible builds pay
   off here**: same inputs → same digest → consumers skip.
-- `type: file` with no path is only valid on a `github_actions:` job
-  (the Actions artifact named after the key).
+- An entry of type `file` with no path is only valid on a
+  `github_actions:` job (the Actions artifact named after the key). An
+  entry's `type:` (`file`, `oci`, `npm`) is unrelated to a structure's
+  `type:` shape.
 - A `produces:` path is in the workspace, so it's whatever the job
   wrote there — or a checked-in file the job checks out. A path outside
   the checkout fails the job with "does not exist".
@@ -50,10 +58,12 @@ build:
 
 ```yaml
 deploy_staging:
-  kind: deploy
+  job_type: deploy
   stage: staging
-  consumes: [build/dist]          # waits for build; dist/ appears at its own path
-  checkout: [deploy]              # the workspace: deploy/ and dist/, nothing else
+  consumes:
+    - build/dist                  # waits for build; dist/ appears at its own path
+  checkout:
+    - deploy                      # the workspace: deploy/ and dist/, nothing else
   script: ./deploy/deploy.sh staging "$PIPEMESH_BUILD_DIST"
 ```
 
@@ -67,25 +77,28 @@ deploy_staging:
   `dist`); `image/app` → `$PIPEMESH_IMAGE_APP` (`registry/repo@sha256:…`);
   `build[region=eu]/dist` → `$PIPEMESH_BUILD_REGION_EU_DIST`.
 - Paths through a body: `ci/build/dist` is the `dist` entry of job
-  `build` inside the body that the `kind: workflow` job `ci` runs;
+  `build` inside the body that the `job_type: workflow` job `ci` runs;
   `../build/jar` inside such a body is the parent's `build/jar`.
 - **Entries reach only the jobs that name them.** `needs:` orders jobs
   but does not hand entries along: a production deploy that `needs:`
-  staging must still `consumes: [build/dist]` itself.
+  staging must still consume `build/dist` itself.
 - Two consumed file entries may not overlap in the workspace.
 - A job that only consumes (`checkout: false`) gets the entries and no
   repository files: a build that signs or packages an artifact, a
-  deploy that ships a bundle, a test of an artifact (`kind: build`,
+  deploy that ships a bundle, a test of an artifact (`job_type: build`,
   `checkout: false`).
 
 The deploy idiom, used by every demo:
 
 ```yaml
 deploy_production:
-  kind: deploy                    # pipelines only; skip: unchanged
-  needs: [deploy_staging]         # promotion order
-  consumes: [build/dist]          # what it ships, by digest
-  checkout: [deploy]              # the only repository files it reads
+  job_type: deploy                # pipelines only; skip: unchanged
+  needs:
+    - deploy_staging              # promotion order
+  consumes:
+    - build/dist                  # what it ships, by digest
+  checkout:
+    - deploy                      # the only repository files it reads
 ```
 
 It runs when the artifact or the deploy scripts changed, and otherwise
@@ -131,12 +144,19 @@ daemon for you.
 
 ```yaml
 image:
-  kind: build
+  job_type: build
   stage: build
-  checkout: [src, package.json, package-lock.json, Dockerfile, .dockerignore]   # all the Dockerfile COPYs
+  checkout:                       # all the Dockerfile COPYs
+    - src
+    - package.json
+    - package-lock.json
+    - Dockerfile
+    - .dockerignore
   setup:
     - uses: aws/role@1
-      with: { arn: "arn:aws:iam::123456789012:role/shop-image-push", region: eu-west-1 }
+      with:
+        arn: arn:aws:iam::123456789012:role/shop-image-push
+        region: eu-west-1
   script: |
     repo=123456789012.dkr.ecr.eu-west-1.amazonaws.com/shop-api
     aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin "${repo%%/*}"
@@ -148,10 +168,12 @@ image:
     app: oci
 
 deploy_staging:
-  kind: deploy
+  job_type: deploy
   stage: staging
-  consumes: [image/app]           # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
-  checkout: [charts/shop]
+  consumes:
+    - image/app                   # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
+  checkout:
+    - charts/shop
   script: helm upgrade --install shop charts/shop --set image="$PIPEMESH_IMAGE_APP" --wait
 ```
 
@@ -162,7 +184,7 @@ so the build job's checkout must hold everything the Dockerfile
 for a Dockerfile that copies the whole repository.
 
 For GHCR: `echo "$GHCR_TOKEN" | docker login ghcr.io -u <user> --password-stdin`
-with `secrets: [GHCR_TOKEN]` (a token with `write:packages`). Deploy by
+with `GHCR_TOKEN` under `secrets:` (a token with `write:packages`). Deploy by
 digest, never by tag: a rollback then redeploys exactly what that
 revision shipped.
 
@@ -174,17 +196,21 @@ never rebuilt), and later jobs run in it with `image_from:`:
 
 ```yaml
 build_ci:
-  kind: build
+  job_type: build
   stage: image
-  checkout: [ci]                         # publish: contexts are added to the checkout anyway
+  checkout:
+    - ci                                 # publish: contexts are added to the checkout anyway
   script: echo "building the CI image from ci/"
   publish:
-    - { context: ci, key: ci_image }     # Dockerfile defaults to ci/Dockerfile; args: → --build-arg
+    - context: ci                        # Dockerfile defaults to ci/Dockerfile; args: → --build-arg
+      key: ci_image
 test:
-  kind: build
+  job_type: build
   stage: test
   image_from: build_ci/ci_image
-  checkout: [src, Makefile]
+  checkout:
+    - src
+    - Makefile
   script: make test
 ```
 
@@ -219,10 +245,10 @@ and the pipeline reuse only each other; a pull request reuses those
 first, then its own earlier runs, never another PR's. Expired artifacts
 don't match.
 
-It is the default of `kind: build`, in pipelines
+It is the default of `job_type: build`, in pipelines
 and in workflows. Deploys keep `skip: unchanged` (their default; it
 exists only in pipelines — in a workflow body it is a load error), and
-tasks `skip: never`. A `kind: workflow` job reuses as a whole when
+tasks `skip: never`. A `job_type: workflow` job reuses as a whole when
 every job of its body is a build.
 
 ## Cache
@@ -230,10 +256,15 @@ every job of its body is a build.
 ```yaml
 cache:
   key: npm-${checksum:package-lock.json}   # exact key
-  restore_keys: [npm-]                     # prefixes, newest match wins
-  paths: [.npm]                            # workspace-relative
+  restore_keys:                            # prefixes, newest match wins
+    - npm-
+  paths:                                   # workspace-relative
+    - .npm
   policy: pull-push                        # default; pull = never save
 ```
+
+A cache definition is plain data: kept in its own file
+(`.pipemesh/npm-cache.yaml`) or a root key, it has no `type:`.
 
 - `${checksum:<file>}` (first 16 hex chars of the file's sha256;
   `none` if missing) is the only interpolation; it may appear several
@@ -255,7 +286,7 @@ cache:
   Cache `node_modules` only when installs are slow and the lockfile key
   makes it safe; the package-manager store is usually the better target.
 - **Who saves, who restores.** Each workload (the pipeline, each
-  workflow, each body a `kind: workflow` or `kind: pipeline` job runs)
+  workflow, each body a `job_type: workflow` or `job_type: pipeline` job runs)
   saves into its own namespace, and
   only trusted runs save: **pull-request runs never save**, so code
   under review can't plant entries a deploy would restore. A
@@ -279,7 +310,7 @@ cache:
 
 Mapping from other CI: GitHub `actions/cache` / `setup-node cache: npm`
 / `setup-python cache: pip` → `cache:` with the lockfile checksum;
-GitLab `cache: key: files: [lock]` → `${checksum:lock}`; CircleCI
+GitLab `cache:key:files:` (the lockfile) → `${checksum:<lockfile>}`; CircleCI
 `save_cache`/`restore_cache` → `cache:` with `restore_keys`.
 
 ## Remote build caches
@@ -291,12 +322,24 @@ so code under review can't plant results that a deploy would ship.
 
 | Tool | Setup in the job | Credentials |
 | --- | --- | --- |
-| Turborepo + Vercel Remote Cache | `setup: [{ uses: vercel/turborepo-token@1, with: { team: <slug> } }, { uses: turbo/remote-cache@1, with: { team: <slug> } }]` | none stored: OIDC policy on the Vercel team trusting `https://pipemesh.io/api/oidc`, `aud https://vercel.com/<slug>`, `sub` = the build jobs' `ref:refs/heads/<branch>` subjects (never `pull_request`) |
-| Turborepo, self-hosted cache | `setup: [{ uses: turbo/remote-cache@1, with: { api: https://cache.example.com, team: <team>, token_var: TURBO_CACHE_TOKEN } }]` | `secrets: [TURBO_CACHE_TOKEN]` on default-branch jobs |
-| Turborepo with an existing `TURBO_TOKEN` | `turbo/remote-cache@1` with `team:` and `secrets: [TURBO_TOKEN]` | the token as a secret, not given to PRs |
-| Nx Cloud | `secrets: [NX_CLOUD_ACCESS_TOKEN]` (read-write) on default-branch builds; set the workspace's default access to read-only so token-less PR runs read only; `NX_DAEMON=false`, `NX_CLOUD_DISABLE_METRICS_COLLECTION=true` on every Nx job | the token as a secret |
-| Bazel + BuildBuddy (or any gRPC cache) | `setup: [{ uses: bazel/remote-cache@1 }]` | `secrets: [BUILDBUDDY_API_KEY]`; optionally a read-only key marked for pull requests, passed as `with: { secret_var: BUILDBUDDY_READONLY_KEY }` |
+| Turborepo + Vercel Remote Cache | two `setup:` steps, `vercel/turborepo-token@1` then `turbo/remote-cache@1`, each `with:` `team: <slug>` (below) | none stored: OIDC policy on the Vercel team trusting `https://pipemesh.io/api/oidc`, `aud https://vercel.com/<slug>`, `sub` = the build jobs' `ref:refs/heads/<branch>` subjects (never `pull_request`) |
+| Turborepo, self-hosted cache | a `setup:` step `turbo/remote-cache@1` `with:` `api: https://cache.example.com`, `team: <team>`, `token_var: TURBO_CACHE_TOKEN` | `TURBO_CACHE_TOKEN` under `secrets:` on default-branch jobs |
+| Turborepo with an existing `TURBO_TOKEN` | `turbo/remote-cache@1` with `team:`, and `TURBO_TOKEN` under `secrets:` | the token as a secret, not given to PRs |
+| Nx Cloud | `NX_CLOUD_ACCESS_TOKEN` (read-write) under `secrets:` on default-branch builds; set the workspace's default access to read-only so token-less PR runs read only; `NX_DAEMON=false`, `NX_CLOUD_DISABLE_METRICS_COLLECTION=true` on every Nx job | the token as a secret |
+| Bazel + BuildBuddy (or any gRPC cache) | a `setup:` step `bazel/remote-cache@1` | `BUILDBUDDY_API_KEY` under `secrets:`; optionally a read-only key marked for pull requests, passed `with:` `secret_var: BUILDBUDDY_READONLY_KEY` |
 | Gradle build cache, sccache, ccache | the tool's own remote-cache settings in the script | a secret on default-branch jobs; read-only on PRs |
+
+The Turborepo + Vercel setup, in full:
+
+```yaml
+setup:
+  - uses: vercel/turborepo-token@1           # OIDC → Vercel → TURBO_TOKEN
+    with:
+      team: acme
+  - uses: turbo/remote-cache@1               # points turbo at it; read-only on PRs
+    with:
+      team: acme
+```
 
 `turbo/remote-cache@1` and `bazel/remote-cache@1` switch themselves to
 read-only on pull-request runs.
@@ -329,7 +372,7 @@ Not set: `CI_COMMIT_BRANCH`, `CI_DEFAULT_BRANCH`, `CI_PIPELINE_ID`,
 `CI_JOB_ID`, `CI_COMMIT_BEFORE_SHA`. Don't branch on
 `CI_COMMIT_REF_NAME` in pipeline jobs — the pipeline only ever sees the
 repository's branch. Pass what the scripts of a body run by a
-`kind: workflow`/`kind: pipeline` job need from the parent run (an
+`job_type: workflow`/`job_type: pipeline` job need from the parent run (an
 input, the tag name) explicitly in that job's `variables:`. The trigger variables
 (`CI_PIPELINE_SOURCE`, `CI_COMMIT_TAG`, `CI_MERGE_REQUEST_*`) are set by
 Pipemesh only — never set them in `variables:`.
@@ -345,7 +388,7 @@ the tag); `github.base_ref` → `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME`;
 
 ## Legacy artifacts
 
-`artifacts: { paths: [...], expire: 7d }` still loads; its files flow
+`artifacts:` (with `paths:` and `expire:`) still loads; its files flow
 along `needs:` edges transitively. It can't be combined with
 `produces:` on one job, and it is on its way out — write `produces:` /
 `consumes:` in new definitions.
