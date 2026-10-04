@@ -220,7 +220,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 
 | key | what it does |
 | --- | --- |
-| `type` | the shape, `job`: required when the job stands alone (its own file, a root key reached with `!ref`), optional inline under `jobs:` |
+| `type` | the shape, `job`: required when the job stands alone (its own file, a root key reached with `!ref`, or a job a `!ref` picks out of another definition, like `!ref ci.jobs.lint`), optional inline under `jobs:` |
 | `job_type` | what the job is: `build`, `deploy`, `task` (the default), `workflow`, `pipeline` — sets its `checkout:` and `skip:` defaults and where it may appear |
 | `stage` | **required**; must be one of the body's `stages`. Places the job on the board — does **not** order execution |
 | `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the job type |
