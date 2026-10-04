@@ -399,3 +399,11 @@ identities it uses, and what to watch after merging. Follow
 `references/onboarding.md`, and tailor it: list the real secret names,
 compute the real OIDC subjects for this repository's jobs, and skip
 sections that don't apply.
+
+Offer to do the first part from the terminal: `npx pipemesh login`
+(show the user the code and page it prints; they approve it in the
+browser — never approve it for them), `npx pipemesh repos` to see
+whether the repository is connected, `npx pipemesh connect` if it isn't
+(the user installs the GitHub App in the page it opens), and
+`npx pipemesh enable` — ask before enabling, since it turns the
+repository on in their account. Every command takes `--json`.

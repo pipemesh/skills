@@ -69,22 +69,40 @@ Give the user the steps that apply, with this repository's real names.
 
 ### 1. Sign in and connect the repository
 
+From the terminal (the agent can run these; the person approves in the
+browser):
+
+```bash
+npx pipemesh login      # shows a code and opens a page; approve it signed in with GitHub
+npx pipemesh repos      # is this repository listed? then skip connect
+npx pipemesh connect    # installs the Pipemesh GitHub App, waits for its repositories
+```
+
+Or in the browser:
+
 1. Sign in at **https://pipemesh.io** with GitHub. The account is the
    namespace; there is no separate sign-up.
 2. **Connect GitHub repositories** (home page button). It opens the
    Pipemesh GitHub App's installation: choose the account or
    organization that owns this repository and grant it access (all
    repositories, or select this one — and every repository named under
-   `repos:` in the definition). Organization members join on their first
-   sign-in; their GitHub role decides what they can do (admin/maintain
-   operate pipelines, write can start manual workflows).
+   `repos:` in the definition).
+
+Organization members join on their first sign-in; their GitHub role
+decides what they can do (admin/maintain operate pipelines, write can
+start manual workflows). The CLI's token acts as the person who
+approved it, with the same permissions, for 90 days
+(`npx pipemesh login --read-only` gets one that never changes
+anything).
 3. The App is read-mostly: it reads contents, writes check runs, and —
    only for jobs that run on GitHub Actions (`github_actions:`) —
    starts and cancels Actions runs. It can never push code.
 
 ### 2. Enable the repository
 
-In **Repositories**, enable `<org>/<repo>`. Enabling records the
+`npx pipemesh enable` inside the checkout (or `npx pipemesh enable
+<org>/<repo>`), or in the browser: **Repositories** → enable
+`<org>/<repo>`. Enabling records the
 repository's branch **by name** — its default branch at that moment
 (e.g. `main`). The pipeline, push workflows and the jobs' OIDC subjects
 all follow that branch. A later rename or a new default branch is not
