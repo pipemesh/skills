@@ -61,6 +61,7 @@ pipeline:
 
     deploy_staging:
       job_type: deploy                  # skip: unchanged — runs when dist or deploy/ is new to it
+      production: false
       stage: staging
       image: node:22-bookworm
       consumes:
@@ -82,6 +83,7 @@ pipeline:
 
     deploy_production:
       job_type: deploy
+      production: true
       stage: production
       image: node:22-bookworm
       needs:
@@ -218,6 +220,7 @@ pipeline:
 
     deploy_staging:
       job_type: deploy
+      production: false
       stage: staging
       consumes:
         - image/app                              # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
@@ -266,6 +269,7 @@ pipeline:
       body: !ref ci
     deploy_staging:
       job_type: deploy
+      production: false
       stage: staging
       consumes:
         - ci/build/dist                  # <workflow job>/<job inside its body>/<key>
@@ -412,6 +416,7 @@ pipeline:
       script: test -f dist/version.txt
     deploy_staging:
       job_type: deploy
+      production: false
       stage: staging
       needs:
         - verify
@@ -421,6 +426,7 @@ pipeline:
           environment: staging
     deploy_production:
       job_type: deploy
+      production: true
       stage: production
       needs:
         - deploy_staging
@@ -559,6 +565,7 @@ jobs:
         path: dist/*.js
   deploy_staging:
     job_type: deploy
+    production: false
     stage: staging
     consumes:
       - build/bundle
@@ -567,6 +574,7 @@ jobs:
     script: deploy/deploy.sh $SERVICE staging
   deploy_prod:
     job_type: deploy
+    production: true
     stage: production
     needs:
       - deploy_staging
@@ -647,6 +655,7 @@ and tar.
 # Lanes: each variant is its own job with its own promotion cursor.
 deploy:
   job_type: deploy                                   # checks out nothing but its script: ships the bundle
+  production: true
   stage: ship
   matrix:
     region:
@@ -728,6 +737,7 @@ pipeline:
         jar: build/libs/billing.jar
     deploy_billing_staging:
       job_type: deploy                   # checks out nothing: ships the jar
+      production: false
       stage: staging
       consumes:
         - billing/jar

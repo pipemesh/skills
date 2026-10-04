@@ -60,7 +60,7 @@ job.
 | `continue-on-error: true` | `allow_failure: true` |
 | `timeout-minutes: 30` | `timeout_seconds: 1800` (default 3600) |
 | `concurrency:` | not needed: one revision at a time per pipeline job, newer ones supersede |
-| `environment: production` | `job_type: deploy` in the pipeline (the job name says where); approval rules → onboarding.md → Holding production. A PR preview environment is a `job_type: task` in the PR workflow |
+| `environment: production` | `job_type: deploy` with `production: true` in the pipeline (a staging environment: `production: false`); approval rules → onboarding.md → Holding production. A PR preview environment is a `job_type: task` in the PR workflow |
 | `outputs:` / `$GITHUB_OUTPUT` | a file entry (`meta: out/meta.env` under `produces:`, consumer `source "$PIPEMESH_BUILD_META"`), or an `oci` entry for an image ref |
 | `permissions: id-token: write` | not needed: every Pipemesh job can request identity tokens |
 | reusable workflows (`uses: ./.github/workflows/x.yml`) | a `type: workflow` body in `.pipemesh/` run by a `job_type: workflow` job or reached with `!ref`/`!include`, or a component for parameterized jobs |
@@ -97,6 +97,7 @@ The `role-to-assume` translation, in full:
 ```yaml
 deploy_staging:
   job_type: deploy
+  production: false
   stage: staging
   setup:
     - uses: aws/role@1

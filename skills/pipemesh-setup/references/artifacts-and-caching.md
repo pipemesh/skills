@@ -59,6 +59,7 @@ build:
 ```yaml
 deploy_staging:
   job_type: deploy
+  production: false
   stage: staging
   consumes:
     - build/dist                  # waits for build; dist/ appears at its own path
@@ -93,6 +94,7 @@ The deploy idiom, used by every demo:
 ```yaml
 deploy_production:
   job_type: deploy                # pipelines only; skip: unchanged
+  production: true
   needs:
     - deploy_staging              # promotion order
   consumes:
@@ -169,6 +171,7 @@ image:
 
 deploy_staging:
   job_type: deploy
+  production: false
   stage: staging
   consumes:
     - image/app                   # $PIPEMESH_IMAGE_APP = <repo>@sha256:…

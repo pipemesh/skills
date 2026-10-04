@@ -252,6 +252,7 @@ The rules that most often go wrong — they differ from other CI systems:
        dist: dist
    deploy_staging:
      job_type: deploy
+     production: false
      stage: staging
      consumes:
        - build/dist
@@ -259,7 +260,11 @@ The rules that most often go wrong — they differ from other CI systems:
    ```
 
    `needs:` orders but passes nothing. Deploys consume what the build
-   produced — never rebuild.
+   produced — never rebuild. Every deploy says whether it reaches
+   production, `production: true` or `production: false` (a load error
+   without it): the production deploys are what DORA metrics,
+   `pipemesh deployments` and `pipemesh deployed` count. Staging, preview
+   and canary deploys are `false`; ask when the environment isn't clear.
 8. **A job runs on one executor**: `script:` (Pipemesh's runners),
    `uses:` (a component) or `github_actions:` (an existing Actions
    workflow, dispatched and waited for). The executor is where the job
@@ -421,6 +426,19 @@ Once the repository is enabled, answer questions about it with the CLI
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
 | Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, waiting for approval, failed, rolled back, or not yet; exit 0 when every one has it |
 
-"Production" is the pipeline's last stage. A commit counts as deployed
+"Production" is the deploys that say `production: true`. A commit counts as deployed
 once a production deploy ran a revision that contains it: a push of
 several commits makes one revision, at its head.
+
+Acting on it changes something, so ask the user first, every time
+(the server refuses what they may not do, and says why):
+
+| To | Command |
+| --- | --- |
+| Start a manual workflow | `npx pipemesh run <workflow>` |
+| Approve or reject a waiting deploy | `npx pipemesh approve <job>` / `reject <job>` (`--rev=<n>` when several wait) |
+| Stop new revisions reaching a job | `npx pipemesh hold <job> --reason="…"`; `release <job>` lets them in |
+| Run a failed job again | `npx pipemesh rerun <job>`; a workflow run's: `rerun <workflow> --run=<n>` |
+| Cancel | `npx pipemesh cancel <job>` (or `<workflow> --run=<n>`); add `--yes` only once the user said so |
+| Roll back | `npx pipemesh rollback <job> [--to=<n>]`: it runs the last good revision again and holds the job; add `--yes` only once the user said so |
+| Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--org` for the account or organization |

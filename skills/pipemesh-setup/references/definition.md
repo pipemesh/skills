@@ -40,6 +40,7 @@ pipeline:                                         # your definition: a body
       body: !ref build_body
     deploy_staging:
       job_type: deploy                            # checks out nothing by default…
+      production: false
       stage: staging
       consumes:
         - build/compile/dist                      # …ships what the build produced
@@ -222,6 +223,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | --- | --- |
 | `type` | the shape, `job`: required when the job stands alone (its own file, a root key reached with `!ref`, or a job a `!ref` picks out of another definition, like `!ref ci.jobs.lint`), optional inline under `jobs:` |
 | `job_type` | what the job is: `build`, `deploy`, `task` (the default), `workflow`, `pipeline` — sets its `checkout:` and `skip:` defaults and where it may appear |
+| `production` | **required on a `job_type: deploy`**, refused elsewhere: `true` when the deploy reaches production (what DORA, `pipemesh deployments` and `pipemesh deployed` count), `false` for staging, preview, canary. A matrix's variants share it; it changes nothing about how the job runs |
 | `stage` | **required**; must be one of the body's `stages`. Places the job on the board — does **not** order execution |
 | `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the job type |
 | `skip` | `unchanged` \| `built` \| `never` — when it may skip. Default from the job type |
@@ -280,7 +282,8 @@ Every job has a job type; write `job_type:` on every job. Absent
   that changed since its last success. Pipelines only: the last
   success it compares with, the revision each environment runs,
   rollback and holds exist only in a pipeline. A pull-request preview
-  or a manual hotfix deploy is a `task` in a workflow.
+  or a manual hotfix deploy is a `task` in a workflow. Every deploy
+  says `production: true` or `production: false`.
 - **`task`** is anything else; it runs on every revision that reaches
   it (smoke tests, notifications, checks that read pull-request context
   such as a merge-base diff).
@@ -378,6 +381,7 @@ A `build`, `deploy` or `task` names exactly one executor:
 ```yaml
 deploy_prod:
   job_type: deploy
+  production: true
   stage: production
   needs:
     - smoke
@@ -506,6 +510,7 @@ test:
 ```yaml
 deploy_production:
   job_type: deploy
+  production: true
   stage: production
   consumes:
     - image/app                                     # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
@@ -578,6 +583,7 @@ pipeline:
   jobs:
     apply:
       job_type: deploy
+      production: false
       stage: deploy
       repo: infra                           # works in infra: its checkout is infra's paths
       checkout:
@@ -607,6 +613,7 @@ the change, keep history with `was:`:
 ```yaml
 deploy_prod:
   job_type: deploy
+  production: true
   was: deploy_production     # takes over its cursor and runs, once
 ```
 

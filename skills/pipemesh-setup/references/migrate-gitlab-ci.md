@@ -78,7 +78,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `timeout: 1h` | `timeout_seconds: 3600` |
 | `tags:` (runner labels) | `tags:` — the first tag is the queue of your own runners; drop tags for hosted runners |
 | `parallel: matrix:` | `matrix:` (`as: jobs` for independent lanes, `as: workflow` for one verdict) |
-| `environment: name: production` | `job_type: deploy` in the pipeline (the job name says where); the board shows what each job deployed. A review app per MR is a `job_type: task` in the PR workflow |
+| `environment: name: production` | `job_type: deploy` with `production: true` in the pipeline (a staging environment: `production: false`); the board shows what each job deployed. A review app per MR is a `job_type: task` in the PR workflow |
 | `resource_group:` / `interruptible:` | not needed: a pipeline job runs one revision at a time and newer revisions supersede queued ones |
 | `extends:` / `!reference` / YAML anchors | `!ref` for whole values; components for variation |
 | `include: local:` | `!include .pipemesh/<file>.yaml` (a whole body or job; the file starts with its `type:`) |
@@ -86,7 +86,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `trigger: include:` (child pipeline) | `job_type: workflow` with `body: !include …` of a `type: workflow` file (one node, waits for it), or `job_type: pipeline` with a `type: pipeline` body for a child pipeline per service |
 | `trigger: project:` (multi-project) | `repos:` + `repo:` in one pipeline, or a separate repository with its own pipeline |
 | `release:` keyword | a script step calling your release tooling (e.g. `gh release create`) |
-| `pages:` | a `job_type: deploy` job in the pipeline |
+| `pages:` | a `job_type: deploy` job in the pipeline, `production: true` |
 | `coverage:` | no equivalent |
 | `id_tokens:` | `$PIPEMESH_ID_TOKEN_REQUEST_URL` + `$PIPEMESH_ID_TOKEN_REQUEST_TOKEN`, or `aws/role@1` |
 
@@ -205,6 +205,7 @@ pipeline:
           expire: 30d
     deploy_staging:
       job_type: deploy                   # skip: unchanged; checks out only deploy.sh
+      production: false
       stage: staging
       consumes:
         - build/dist
@@ -213,6 +214,7 @@ pipeline:
       script: ./deploy.sh staging
     deploy_production:
       job_type: deploy
+      production: true
       stage: production
       needs:
         - deploy_staging
