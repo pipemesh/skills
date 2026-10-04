@@ -214,7 +214,9 @@ their queue. Images used on your runners need bash, git, curl and tar.
   `npx pipemesh check` (step 5) is the pre-merge validation.
 - Merging the PR into that branch starts the first revision. The
   board is at `https://pipemesh.io/github.com/<org>/<repo>` (the
-  pipeline at `…/-/pipeline`). If the definition doesn't load, the
+  pipeline at `…/-/pipeline`); from the terminal,
+  `npx pipemesh watch --sha=<merge commit>` follows it until it settles
+  and `npx pipemesh logs <job>` shows a job's log. If the definition doesn't load, the
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
   with; later revisions skip what didn't change.

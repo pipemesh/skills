@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, what went to production, or whether a change was deployed.
 ---
 
 # Pipemesh setup
@@ -407,3 +407,20 @@ whether the repository is connected, `npx pipemesh connect` if it isn't
 (the user installs the GitHub App in the page it opens), and
 `npx pipemesh enable` — ask before enabling, since it turns the
 repository on in their account. Every command takes `--json`.
+
+## After it's on: following it, and what went out
+
+Once the repository is enabled, answer questions about it with the CLI
+(add `--json` to read the answer; public repositories need no sign-in):
+
+| Question | Command |
+| --- | --- |
+| How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
+| Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
+| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs) |
+| What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
+| Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, waiting for approval, failed, rolled back, or not yet; exit 0 when every one has it |
+
+"Production" is the pipeline's last stage. A commit counts as deployed
+once a production deploy ran a revision that contains it: a push of
+several commits makes one revision, at its head.
