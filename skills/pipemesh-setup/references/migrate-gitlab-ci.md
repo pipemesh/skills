@@ -24,12 +24,22 @@ can't be enabled yet; a repository that moved to GitHub but kept its
    become a workflow `on: pull_request`; tag jobs a workflow `on: tag`;
    schedule jobs a workflow `on: schedule`. A job that appears in several
    of them goes into each body (share it with `!ref`).
-3. **`rules: changes:` becomes `paths:` + `skip:`.** And the comparison
-   base is the job's own last successful run, not the previous commit —
-   a failed build can't be skipped past.
-4. **No anchors, `extends:` or hidden `.jobs`.** Reuse a whole job with
+3. **`rules: changes:` becomes `checkout:` + the job's kind.** The
+   kind sets the skip policy (a `build` reuses, a `deploy` skips when
+   unchanged, a `task` always runs) and the checkout is what's
+   compared. And the comparison base is the job's own last successful
+   run (or any earlier build with the same inputs), not the previous
+   commit — a failed build can't be skipped past.
+4. **A job checks out only what it lists.** GitLab clones the whole
+   tree for every job; Pipemesh gives each job exactly its `checkout:`
+   (`true`, `false` or a list), and a file left out isn't in the
+   workspace. A `build` defaults to the whole tree; a `deploy`,
+   `transform` or `task` (and a job without `kind:`) to nothing. List
+   what each script reads. History is complete either way, so
+   `git diff`/`git merge-base` work.
+5. **No anchors, `extends:` or hidden `.jobs`.** Reuse a whole job with
    `!ref`; vary it with a component (`uses:` + `with:`).
-5. **Artifacts are declared outputs.** `artifacts: paths:` +
+6. **Artifacts are declared outputs.** `artifacts: paths:` +
    `dependencies:` becomes `produces:` on the producer and `consumes:`
    (or `needs:`) on the consumer.
 
@@ -38,7 +48,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | GitLab | Pipemesh |
 | --- | --- |
 | `stages:` | `stages:` (board columns only) |
-| `stage:` | `stage:` |
+| `stage:` | `stage:` — plus a `kind:` on every job (decisions.md → *Choosing each job's kind*) |
 | `script:` / `before_script:` / `after_script:` | same, but the three run as one script under `set -e`: `after_script` is skipped when `script` fails — move cleanup that must always run into a `trap … EXIT` |
 | `default: before_script:` | repeat on each job, or put the lines in a component / `!ref` list spliced into `script` |
 | `image:` | same — a public image with bash, git, curl, tar (`python:3.12` → `python:3.12-bookworm` is the same thing, explicit) |
@@ -55,7 +65,9 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `rules: - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH` | the job goes in the pipeline body |
 | `rules: - if: $CI_COMMIT_TAG` | workflow `on: tag` (filter `tags: ["v*"]`) |
 | `rules: - if: $CI_PIPELINE_SOURCE == "schedule"` | workflow `on: schedule`, `cron:` from the GitLab schedule (UTC) |
-| `rules: - changes: [path/**]` | `paths: [path]` (+ `skip: built` in workflows) |
+| `rules: - changes: [path/**]` | `checkout: [path]` on a `build` (reuses while `path` is unchanged) or a `deploy` (skips while unchanged) |
+| `GIT_STRATEGY: none` | `checkout: false` (the default of every kind but `build`) |
+| `GIT_DEPTH:` | nothing: history is always complete |
 | `rules: - if: $CI_COMMIT_BRANCH =~ /^release/` (other branches) | not supported: only the branch the repository was added with is watched — ask (tags or a manual workflow) |
 | `only:` / `except:` | same mapping as `rules:` |
 | `when: manual` | no per-job manual key. Operators hold promotions into a job from the board ("Disable promotions…"); see onboarding.md → Holding production. For manual one-offs, a workflow with no trigger |
@@ -65,15 +77,15 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `timeout: 1h` | `timeout_seconds: 3600` |
 | `tags: [runner-label]` | `tags: [<queue>]` — first tag is the queue of your own runners; drop tags for hosted runners |
 | `parallel: matrix:` | `matrix:` (`as: jobs` for independent lanes, `as: workflow` for one verdict) |
-| `environment: name: production` | no key: the stage/job name says it; the board shows what each job deployed |
+| `environment: name: production` | `kind: deploy` in the pipeline (the job name says where); the board shows what each job deployed. A review app per MR is a `kind: task` in the PR workflow |
 | `resource_group:` / `interruptible:` | not needed: a pipeline job runs one revision at a time and newer revisions supersede queued ones |
 | `extends:` / `!reference` / YAML anchors | `!ref` for whole values; components for variation |
 | `include: local:` | `!include .pipemesh/<file>.yaml` (a whole body or job) |
 | `include: project:` / `template:` / `component:` | no cross-repo includes; copy what's used, or use a Pipemesh registry component |
-| `trigger: include:` (child pipeline) | `delegate: { type: workflow, params: { body: … } }` |
+| `trigger: include:` (child pipeline) | `kind: workflow` with `body: !include …` (one node, waits for it), or `kind: pipeline` with `body:` for a child pipeline per service |
 | `trigger: project:` (multi-project) | `repos:` + `repo:` in one pipeline, or a separate repository with its own pipeline |
 | `release:` keyword | a script step calling your release tooling (e.g. `gh release create`) |
-| `pages:` | a deploy job in the pipeline |
+| `pages:` | a `kind: deploy` job in the pipeline |
 | `coverage:` | no equivalent |
 | `id_tokens:` | `$PIPEMESH_ID_TOKEN_REQUEST_URL` + `$PIPEMESH_ID_TOKEN_REQUEST_TOKEN`, or `aws/role@1` |
 
@@ -133,8 +145,10 @@ checks:
   stages: [test]
   jobs:
     test:
+      kind: build
       stage: test
       image: node:22-bookworm
+      checkout: [src, package.json, package-lock.json]
       cache: !ref node.cache
       script: |
         npm ci --cache .npm --prefer-offline
@@ -144,10 +158,10 @@ pipeline:
   stages: [build, staging, production]
   jobs:
     build:
+      kind: build                        # skip: built
       stage: build
       image: node:22-bookworm
-      paths: [src, package.json, package-lock.json]
-      skip: built
+      checkout: [src, package.json, package-lock.json]
       cache: !ref node.cache
       script: |
         npm ci --cache .npm --prefer-offline
@@ -156,15 +170,17 @@ pipeline:
       produces:
         dist: { path: dist, expire: 30d }
     deploy_staging:
+      kind: deploy                       # skip: unchanged; checks out only deploy.sh
       stage: staging
       consumes: [build/dist]
-      paths: [deploy.sh]
+      checkout: [deploy.sh]
       script: ./deploy.sh staging
     deploy_production:
+      kind: deploy
       stage: production
       needs: [deploy_staging]
       consumes: [build/dist]
-      paths: [deploy.sh]
+      checkout: [deploy.sh]
       script: ./deploy.sh production
 
 pipemesh:

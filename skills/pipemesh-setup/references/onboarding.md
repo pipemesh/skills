@@ -14,9 +14,9 @@ Keep it short and concrete. Use this order:
 **How the old CI maps**
 | Before | After | Notes |
 | --- | --- | --- |
-| `ci.yml` › lint, test (PRs) | workflow `checks` › lint, test | runs on every PR head |
-| `deploy.yml` › image | pipeline › `image` | `publish:` records the digest; `skip: built` |
-| `deploy.yml` › deploy-staging | pipeline › `deploy_staging` | consumes the image; runs only when it changed |
+| `ci.yml` › lint, test (PRs) | workflow `checks` › lint, test | builds: reuse when `src/` and the lockfile are unchanged |
+| `deploy.yml` › image | pipeline › `image` | a build; records the digest with `pipemesh produce` |
+| `deploy.yml` › deploy-staging | pipeline › `deploy_staging` | a deploy: consumes the image, checks out `charts/`; runs only when either changed |
 
 **Decisions** — one line each, with the reason.
 
@@ -79,8 +79,8 @@ Give the user the steps that apply, with this repository's real names.
    sign-in; their GitHub role decides what they can do (admin/maintain
    operate pipelines, write can start manual workflows).
 3. The App is read-mostly: it reads contents, writes check runs, and —
-   only for jobs that delegate to GitHub Actions — starts and cancels
-   Actions runs. It can never push code.
+   only for jobs that run on GitHub Actions (`github_actions:`) —
+   starts and cancels Actions runs. It can never push code.
 
 ### 2. Enable the repository
 
@@ -134,7 +134,7 @@ after it turned into `:`:
 | --- | --- | --- |
 | `deploy_staging` in the repo's pipeline | `/github.com/acme/shop/-/pipeline` | `pipeline:github.com/acme/shop:pipeline:ref:refs/heads/main:job:deploy_staging` |
 | `build` in child pipeline `orders` | `/github.com/acme/shop/-/pipeline/orders` | `pipeline:github.com/acme/shop:pipeline:orders:ref:refs/heads/main:job:build` |
-| `compile` inside the workflow the pipeline's `build` job delegates to | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:ref:refs/heads/main:job:compile` |
+| `compile` inside the body the pipeline's `build` job (`kind: workflow`) runs | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:ref:refs/heads/main:job:compile` |
 | `publish` in workflow `release`, on a tag | `/github.com/acme/shop/-/release` | `pipeline:github.com/acme/shop:release:ref:refs/tags/v1.2.3:job:publish` (trust with a `StringLike` on `…:release:ref:refs/tags/v*:job:publish`) |
 
 Contexts: `ref:refs/heads/<branch>` (pipeline revisions and push,
@@ -167,12 +167,12 @@ When the old CI used GitHub's OIDC (`role-to-assume`), the roles can
 stay — add a statement trusting Pipemesh's issuer and subjects next to
 GitHub's, and remove GitHub's once the old workflow is retired.
 
-### 5. If jobs delegate to GitHub Actions
+### 5. If jobs run on GitHub Actions
 
 The App needs **Actions: read and write**. An organization that
 installed the App before must accept the permission request on GitHub
 (Settings → GitHub Apps → Pipemesh → review request); until then the
-delegating job fails with a message saying so. The workflows must have
+`github_actions:` job fails with a message saying so. The workflows must have
 the `workflow_dispatch` inputs `pipemesh_sha` and `pipemesh_run` on the
 default branch before the first dispatch.
 
@@ -200,6 +200,12 @@ their queue. Images used on your runners need bash, git, curl and tar.
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
   with; later revisions skip what didn't change.
+- **A job that fails on a missing file** ("No such file or directory",
+  a Dockerfile `COPY` "not found", a tool that can't find its config)
+  most likely reads something its `checkout:` leaves out: the checkout
+  is enforced. Add the path to the job's `checkout:` (or use `true`)
+  and push again. The job's Rules tab on the board shows its effective
+  kind, checkout and skip, and where each came from.
 - Tag-triggered workflows fire for tags pushed from now on; existing
   tags are history.
 - Pull requests opened after that get check runs named
@@ -230,9 +236,9 @@ There is no per-job approval key in the definition. What Pipemesh offers:
 - **Rollback** re-deploys an earlier revision's artifacts and gates the
   job automatically until promotions are re-enabled.
 - If every production deploy must be approved by a person, keep that
-  approval where it already lives: delegate the production deploy to a
+  approval where it already lives: run the production deploy on a
   GitHub Actions workflow whose `environment:` has required reviewers
-  (`delegate: { type: github_actions }`, with a generous
+  (`kind: deploy` with `github_actions: deploy.yml` and a generous
   `timeout_seconds`); Pipemesh waits for the run, which waits for the
   approval.
 

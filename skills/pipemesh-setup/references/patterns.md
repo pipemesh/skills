@@ -2,7 +2,8 @@
 
 Worked shapes, each taken from a public demo that runs on pipemesh.io.
 Start from the closest one and adapt; don't paste blindly — every
-`paths:`, `produces:` and `consumes:` must match the real repository.
+`kind:`, `checkout:`, `produces:` and `consumes:` must match the real
+repository. A checkout is enforced: list what the job's commands read.
 
 Contents
 1. One service: build → staging → production, plus PR checks
@@ -10,7 +11,7 @@ Contents
 3. A heavy CI suite as one node of the pipeline
 4. Library / CLI release on a tag
 5. Scheduled and manual workflows
-6. Keep GitHub Actions as the compute (Actions bridge)
+6. Keep GitHub Actions as the compute (`github_actions:`)
 7. Monorepo: one pipeline per service (Nx, Turborepo, Bazel, plain paths)
 8. A CI image built inside the pipeline
 9. Matrix: per-region lanes vs a CI-style matrix
@@ -32,10 +33,10 @@ pipeline:
   stages: [build, staging, production]
   jobs:
     build:
+      kind: build                       # skip: built — a revert or a docs-only commit reuses the stored bundle
       stage: build
       image: node:22-bookworm
-      paths: [src, package.json, package-lock.json, tsconfig.json]
-      skip: built                       # a revert or a docs-only commit reuses the stored bundle
+      checkout: [src, package.json, package-lock.json, tsconfig.json]   # everything npm ci/test/build read
       cache: !include .pipemesh/npm-cache.yaml   # the same definition the PR checks use
       script: |
         npm ci --cache .npm --prefer-offline
@@ -45,19 +46,28 @@ pipeline:
         dist: { path: dist, expire: 30d }
 
     deploy_staging:
+      kind: deploy                      # skip: unchanged — runs when dist or deploy/ is new to it
       stage: staging
       image: node:22-bookworm
-      consumes: [build/dist]            # waits for build; runs only when dist is new to it
-      paths: [deploy]                   # …or when the deploy scripts change
+      consumes: [build/dist]            # waits for build; dist/ lands at its own path
+      checkout: [deploy]                # the only repository files it reads
       secrets: [STAGING_DEPLOY_TOKEN]
       script: ./deploy/deploy.sh staging dist
 
+    smoke:
+      kind: task                        # skip: never — it checks the live site every time
+      stage: staging
+      needs: [deploy_staging]
+      checkout: [scripts/smoke.sh]
+      script: ./scripts/smoke.sh https://staging.example.com
+
     deploy_production:
+      kind: deploy
       stage: production
       image: node:22-bookworm
-      needs: [deploy_staging]           # production only takes what staging took
+      needs: [smoke]                    # production only takes what staging took and passed
       consumes: [build/dist]
-      paths: [deploy]
+      checkout: [deploy]
       secrets: [PRODUCTION_DEPLOY_TOKEN]
       script: ./deploy/deploy.sh production dist
 
@@ -81,15 +91,19 @@ paths: [.npm]
 stages: [test]
 jobs:
   lint:
+    kind: build
     stage: test
     image: node:22-bookworm
+    checkout: [src, package.json, package-lock.json, .eslintrc.json]
     cache: !include .pipemesh/npm-cache.yaml
     script: |
       npm ci --cache .npm --prefer-offline
       npm run lint
   test:
+    kind: build
     stage: test
     image: node:22-bookworm
+    checkout: [src, package.json, package-lock.json, tsconfig.json]
     cache: !include .pipemesh/npm-cache.yaml
     script: |
       npm ci --cache .npm --prefer-offline
@@ -100,19 +114,24 @@ Why it is shaped like this:
 
 - The deploys **consume** the build's output instead of rebuilding: what
   ships is what was tested, and a rollback redeploys the exact files.
-- `paths: [deploy]` on the deploys means "the only repository files I
-  read are the deploy scripts". Together with `consumes:`, a deploy runs
-  when the artifact or its scripts changed, and shows *no changes*
-  otherwise. Without `paths:` a deploy reads the whole repository and
-  runs on every commit.
-- `skip: built` on the build reuses a stored run whose fingerprint
-  matches (a revert, a README edit). Deploys keep the pipeline default
-  (`skip: unchanged`), which compares with *their own* last success.
-- PR checks are a separate workflow body: PRs never deploy, and the
-  pipeline only sees the default branch.
+- `checkout: [deploy]` on the deploys means "the only repository files
+  I read are the deploy scripts" — and the workspace holds only those
+  plus `dist/`. Together with `consumes:`, a deploy runs when the
+  artifact or its scripts changed, and shows *no changes* otherwise.
+  A deploy that checked out the whole repository would redeploy on
+  every commit.
+- The build narrows its checkout to what npm reads, so a README edit
+  reuses the stored build. Every root file the tools read must be
+  listed — a missing `tsconfig.json` fails the build. When in doubt,
+  leave a build at its default `checkout: true` and narrow later.
+- `smoke` is a task: it reads a live URL, so it must run every time.
+- PR checks are builds too: a pull request that leaves their checkout
+  alone reuses the pipeline's pass. PRs never deploy, and the pipeline
+  only sees the default branch.
 - Pull-request runs never save caches; they restore what the pipeline's
   `build` saved, because both include the same cache definition (same
-  key and `paths:`).
+  key and `paths:`). The lockfile named in the key is checked out
+  automatically.
 
 ## 2. Container image built and deployed by digest
 
@@ -127,9 +146,11 @@ pipeline:
   stages: [build, staging, production]
   jobs:
     image:
+      kind: build
       stage: build
-      paths: [src, package.json, package-lock.json, Dockerfile]
-      skip: built
+      # docker build . sends this as the build context: list everything
+      # the Dockerfile COPYs, plus .dockerignore
+      checkout: [src, package.json, package-lock.json, Dockerfile, .dockerignore]
       setup:
         - uses: aws/role@1                       # keyless: the job's OIDC identity assumes the role
           with: { arn: "arn:aws:iam::123456789012:role/shop-image-push", region: eu-west-1 }
@@ -144,9 +165,10 @@ pipeline:
         app: oci
 
     deploy_staging:
+      kind: deploy
       stage: staging
       consumes: [image/app]                      # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
-      paths: [charts/shop-api, scripts/deploy.sh]
+      checkout: [charts/shop-api, scripts/deploy.sh]
       setup:
         - uses: aws/role@1
           with: { arn: "arn:aws:iam::123456789012:role/shop-deploy-staging", region: eu-west-1 }
@@ -155,6 +177,8 @@ pipeline:
 
 - Deploy by digest, never by tag: a rebuild with the same digest deploys
   nothing, and a rollback redeploys the digest that revision shipped.
+- An image build is a `build`, not a deploy: the image is an output
+  that the deploys ship.
 - Helm/kubectl aren't in the job image; install them in the script
   (pinned version, `linux-arm64` build) or run the deploy in an image
   that has them plus bash, git, curl and tar.
@@ -176,12 +200,14 @@ pipeline:
   stages: [verify, staging, production]
   jobs:
     ci:
+      kind: workflow                     # one run per revision, one verdict
       stage: verify
-      delegate: { type: workflow, params: { body: !ref ci } }   # one run per revision, one verdict
+      body: !ref ci
     deploy_staging:
+      kind: deploy
       stage: staging
-      consumes: [ci/build/dist]          # <delegating job>/<job inside the workflow>/<key>
-      paths: [deploy]
+      consumes: [ci/build/dist]          # <workflow job>/<job inside its body>/<key>
+      checkout: [deploy]
       script: ./deploy/deploy.sh staging
     # …
 
@@ -192,13 +218,18 @@ pipemesh:
     checks: { body: !ref ci, on: pull_request }
 ```
 
-The board shows `ci` as one card that expands into the workflow's jobs.
-Jobs inside a workflow body can't use `skip: unchanged`; use
-`skip: built` for the expensive, hermetic ones.
+The board shows `ci` as one card that expands into the body's jobs.
+A `kind: workflow` job reads what its jobs read: their checkouts
+combined. When every job of the body is a build it reuses as a whole
+(entries included) on a revision none of them reads; one task in the
+body (a commit-message lint, a merge-base check) makes it run every
+time. Jobs inside a workflow body can't use `skip: unchanged`, and a
+deploy can't live there.
 
 ## 4. Library / CLI release on a tag
 
-A release is a record of one event, so it is a workflow.
+A release is a record of one event, so it is a workflow — and in a
+workflow, the publish is a `task` (deploys are pipeline-only).
 
 ```yaml
 pipemesh:
@@ -217,17 +248,20 @@ pipemesh:
 stages: [build, publish]
 jobs:
   build:
+    kind: build
     stage: build
     image: python:3.12-bookworm
+    checkout: [src, pyproject.toml, README.md]   # what python -m build packages
     script: |
       pip install build
       python -m build
     produces:
       wheel: { path: dist }
   publish:
+    kind: task                          # a release in a workflow: runs once per tag
     stage: publish
     image: python:3.12-bookworm
-    consumes: [build/wheel]
+    consumes: [build/wheel]             # dist/ arrives; nothing else is checked out
     secrets: [PYPI_TOKEN]
     script: |
       pip install twine
@@ -249,36 +283,42 @@ pipemesh:
       inputs: { since: { default: "7d", description: "How far back" } }
 ```
 
-Inputs arrive as variables (`$since`).
+Inputs arrive as variables (`$since`). Their jobs are usually tasks
+(they act on the world, so they run every time), each checking out the
+scripts it runs.
 
-## 6. Keep GitHub Actions as the compute (Actions bridge)
+## 6. Keep GitHub Actions as the compute (`github_actions:`)
 
 Pipemesh orchestrates the release; existing Actions workflows do the
 work. Good first step for teams with large Actions workflows, or for
-steps tied to Actions-only marketplace actions.
+steps tied to Actions-only marketplace actions. The executor is where a
+job runs, not what it is: a deploy on Actions is still a `kind: deploy`.
 
 ```yaml
 pipeline:
   stages: [build, staging, production]
   jobs:
     build:
+      kind: build
       stage: build
       produces: { dist: file }               # the Actions artifact named "dist" becomes this entry
-      delegate:
-        type: github_actions
-        params: { workflow: build.yml }
+      github_actions: build.yml              # checkout read from build.yml's actions/checkout
+    verify:
+      kind: build                            # hosted compute reading what Actions built
+      stage: build
+      consumes: [build/dist]
+      checkout: false
+      script: test -f dist/version.txt
     deploy_staging:
+      kind: deploy
       stage: staging
-      needs: [build]
-      delegate:
-        type: github_actions
-        params: { workflow: deploy.yml, inputs: { environment: staging } }
+      needs: [verify]
+      github_actions: { workflow: deploy.yml, inputs: { environment: staging } }
     deploy_production:
+      kind: deploy
       stage: production
       needs: [deploy_staging]
-      delegate:
-        type: github_actions
-        params: { workflow: deploy.yml, inputs: { environment: production } }
+      github_actions: { workflow: deploy.yml, inputs: { environment: production } }
 ```
 
 Each Actions workflow must change to be dispatched:
@@ -296,27 +336,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.pipemesh_sha }}" }     # GitHub reads the file from the branch; check out the revision
-      - run: ./deploy.sh ${{ inputs.environment }}
+        with:
+          ref: "${{ inputs.pipemesh_sha }}"             # GitHub reads the file from the branch; check out the revision
+          sparse-checkout: deploy                        # what this workflow reads — and what Pipemesh fingerprints
+      - run: ./deploy/deploy.sh ${{ inputs.environment }}
 ```
 
+- **The job's checkout is read from the workflow file**: an
+  `actions/checkout` without `sparse-checkout:` makes it `true` — a
+  deploy that runs on every revision. Narrow it in the workflow with
+  `sparse-checkout:` (directories, cone mode), or set `checkout:` on the
+  Pipemesh job, which overrides the derivation. Pipemesh can't enforce
+  an Actions checkout; a narrowed one is a promise the workflow keeps.
+  The workflow file itself is always part of the job's inputs.
 - Remove the workflow's old `push:` trigger when Pipemesh takes over, or
   it runs twice.
-- Artifacts: `produces: { dist: file }` on the delegating job imports
-  the run's Actions artifact named `dist` as an entry; Pipemesh jobs
-  that `consumes: [build/dist]` get it unpacked under `dist/`. (The
-  older `params.artifacts: [dist]` imports plain artifacts that flow
-  along `needs:`.)
+- Artifacts: `produces: { dist: file }` on the job imports the run's
+  Actions artifact named `dist` as an entry; Pipemesh jobs that
+  `consumes: [build/dist]` get it unpacked under `dist/`.
 - A dispatched Actions run fetches what the Pipemesh job consumes with
   `- uses: pipemesh/consume@v1` (the job declares `consumes:`; the
-  workflow needs
-  `permissions: { id-token: write, contents: read }`); entries become
-  `$PIPEMESH_<PATH>` variables in the run. Inside an Actions run, `uses: pipemesh/consume@v1` fetches
-  what the Pipemesh job consumes (needs `permissions: id-token: write`),
-  and `uses: pipemesh/produce@v1` emits an image or npm package entry.
-- A delegating job can't also have `script`, `image`, `tags`,
-  `secrets`, `cache` or `publish` — the Actions run is the execution.
-  Secrets stay in GitHub.
+  workflow needs `permissions: { id-token: write, contents: read }`);
+  entries become `$PIPEMESH_<PATH>` variables in the run.
+  `- uses: pipemesh/produce@v1` emits an image or npm package entry.
+- A `github_actions:` job can't also have `script`, `setup`, `uses`,
+  `image`, `tags`, `secrets`, `cache` or `publish` — the Actions run is
+  the execution. Secrets stay in GitHub.
 - The Pipemesh GitHub App needs **Actions: read and write**; an
   organization that installed it earlier must accept the permission.
 
@@ -334,6 +379,7 @@ dispatch:
   stages: [graph, dispatch]
   jobs:
     graph:
+      kind: build                              # checks out the whole tree: the build tool reads all of it
       stage: graph
       uses: nx/fingerprint@1                   # or turbo/fingerprint@1, bazel/fingerprint@1
       with:
@@ -343,19 +389,17 @@ dispatch:
         orders: fingerprints/orders
         payments: fingerprints/payments
     orders:
+      kind: pipeline                           # checks out nothing: its entry is its only input
       stage: dispatch
-      consumes: [graph/orders]
-      paths: []                                # the fingerprint is its only input
-      delegate:
-        type: pipeline
-        params: { body: !ref service, variables: { SERVICE: orders } }
+      consumes: [graph/orders]                 # hands the revision over only when this changed
+      body: !ref service
+      variables: { SERVICE: orders }
     payments:
+      kind: pipeline
       stage: dispatch
       consumes: [graph/payments]
-      paths: []
-      delegate:
-        type: pipeline
-        params: { body: !ref service, variables: { SERVICE: payments } }
+      body: !ref service
+      variables: { SERVICE: payments }
 
 pipemesh:
   pipelines:
@@ -369,6 +413,7 @@ pipemesh:
 stages: [build, staging, production]
 jobs:
   build:
+    kind: build                                # checkout: true — npm ci and Nx read the whole workspace
     stage: build
     image: node:24-bookworm
     secrets: [NX_CLOUD_ACCESS_TOKEN]           # remote cache writes from the default branch only
@@ -380,16 +425,33 @@ jobs:
     produces:
       bundle: { path: "dist/*.js" }
   deploy_staging:
+    kind: deploy
     stage: staging
     consumes: [build/bundle]
-    paths: [deploy]
+    checkout: [deploy]
     script: deploy/deploy.sh $SERVICE staging
   deploy_prod:
+    kind: deploy
     stage: production
     needs: [deploy_staging]
     consumes: [build/bundle]
-    paths: [deploy]
+    checkout: [deploy]
     script: deploy/deploy.sh $SERVICE production
+```
+
+```yaml
+# .pipemesh/checks.yaml — PR checks: only what the change can affect
+stages: [test]
+jobs:
+  affected:
+    kind: task                                 # reads the merge base, so it runs on every PR revision
+    stage: test
+    checkout: true                             # the project graph spans the tree; history stays complete
+    image: node:24-bookworm
+    script: |
+      npm ci --no-audit --no-fund
+      base=$(git merge-base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" HEAD)
+      NX_DAEMON=false npx nx affected -t test build --base="$base" --head=HEAD
 ```
 
 Per build tool (full guides: pipemesh.io/docs/nx-monorepo,
@@ -397,10 +459,10 @@ Per build tool (full guides: pipemesh.io/docs/nx-monorepo,
 
 | Tool | Fingerprint component | Remote cache | PR checks |
 | --- | --- | --- | --- |
-| Nx | `nx/fingerprint@1` (`with: image, install, with_target, targets, extra`) | Nx Cloud: `secrets: [NX_CLOUD_ACCESS_TOKEN]` on the service build; workspace default access read-only | `npx nx affected -t test build --base=$(git merge-base origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME HEAD)` |
-| Turborepo | `turbo/fingerprint@1` (`with: image, install, turbo, deployables, extra`) | `setup: [vercel/turborepo-token@1, turbo/remote-cache@1]` (keyless via OIDC), or `turbo/remote-cache@1` with a token secret for a self-hosted cache | `TURBO_SCM_BASE=<merge base> pnpm turbo run build test --affected` |
-| Bazel | `bazel/fingerprint@1` (`with: image, bazel, targets, extra`), deployable targets tagged `deployable` | `setup: [bazel/remote-cache@1]` + `secrets: [BUILDBUDDY_API_KEY]` | rdeps query of the diff against the merge base |
-| none (plain dirs) | no graph job: each dispatch job lists `paths: [services/orders, libs/shared]` instead of consuming a fingerprint | your tool's own | path-filtered jobs with `skip: built` |
+| Nx | `nx/fingerprint@1` (`with: image, install, with_target, targets, extra`) | Nx Cloud: `secrets: [NX_CLOUD_ACCESS_TOKEN]` on the service build; workspace default access read-only | a `task`: `npx nx affected -t test build --base=$(git merge-base origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME HEAD)` |
+| Turborepo | `turbo/fingerprint@1` (`with: image, install, turbo, deployables, extra`) | `setup: [vercel/turborepo-token@1, turbo/remote-cache@1]` (keyless via OIDC), or `turbo/remote-cache@1` with a token secret for a self-hosted cache | a `task`: `TURBO_SCM_BASE=<merge base> pnpm turbo run build test --affected` |
+| Bazel | `bazel/fingerprint@1` (`with: image, bazel, targets, extra`), deployable targets tagged `deployable` | `setup: [bazel/remote-cache@1]` + `secrets: [BUILDBUDDY_API_KEY]` | a `task`: rdeps query of the diff against the merge base |
+| none (plain dirs) | no graph job: each `kind: pipeline` job lists `checkout: [services/orders, libs/shared]` instead of consuming a fingerprint | your tool's own | builds with narrowed checkouts (`checkout: [services/orders, libs/shared, package.json, …]`) |
 
 The deploy-only-on-new-artifact behaviour needs a **reproducible
 build** (same inputs → same bytes): esbuild, Bazel deploy jars and
@@ -415,13 +477,14 @@ directory, kept by Pipemesh, and used by later jobs by digest:
 
 ```yaml
 build_ci:
+  kind: build                                # same ci/ content → same image, no rebuild
   stage: image
-  paths: [ci]
-  skip: built                                # same ci/ content → same image, no rebuild
+  checkout: [ci]                             # the publish: context is added anyway
   script: echo "building the CI image"
   publish:
     - { context: ci, key: ci_image }         # no repo: Pipemesh keeps it, no registry token
 graph:
+  kind: build
   stage: graph
   image_from: build_ci/ci_image              # runs in exactly that image, pinned by digest
   script: make fingerprints
@@ -436,30 +499,35 @@ and tar.
 ```yaml
 # Lanes: each variant is its own job with its own promotion cursor.
 deploy:
+  kind: deploy                                       # checks out nothing: ships the bundle
   stage: ship
   matrix:
     region: [us, eu]
   needs:
     - "regional_test[region=${{ matrix.region }}]"   # each region ships what its lane tested
   consumes: [bundle/dist]
-  paths: []
+  checkout: [deploy.sh]
   script: ./deploy.sh ${{ matrix.region }}
 
 # CI matrix: variants pass or fail as one node.
 suite:
+  kind: build
   stage: test
   matrix:
     node: ["20", "22"]
     os_image: [bookworm]
     as: workflow
   image: node:${{ matrix.node }}-${{ matrix.os_image }}
+  checkout: [src, test, package.json, package-lock.json]
   script: npm ci && npm test
 ```
 
 Selectors are always `key=value`; quote bracketed names inside flow
 lists. The cross product is capped at 256. GitHub `include:`/`exclude:`
 have no equivalent: list the variants as separate jobs or reshape the
-axes.
+axes. `${{ matrix.x }}` works in `checkout:` too
+(`checkout: ["streams/${{ matrix.stream }}"]`), so each lane re-runs
+only when its own files change.
 
 ## 10. Several repositories, one pipeline
 
@@ -471,25 +539,25 @@ pipeline:
   stages: [build, staging]
   jobs:
     orders_client:
+      kind: build
       stage: build
-      repo: orders                       # works in the orders repository
-      paths: [client]
-      skip: built
-      script: ./gradlew :client:jar && cp client/build/libs/client.jar out/orders-client.jar
+      repo: orders                       # works in the orders repository: checkout is orders' paths
+      checkout: [client, gradlew, gradle, settings.gradle.kts]
+      script: ./gradlew :client:jar && mkdir -p out && cp client/build/libs/client.jar out/orders-client.jar
       produces: { jar: out/orders-client.jar }
     billing:
+      kind: build
       stage: build
       repo: billing
-      paths: [src]
-      skip: built
+      checkout: [src, gradlew, gradle, settings.gradle.kts, build.gradle.kts]
       consumes: [orders_client/jar]      # $PIPEMESH_ORDERS_CLIENT_JAR is the jar's path
       script: ./gradlew build -PordersClient="$PIPEMESH_ORDERS_CLIENT_JAR"
       produces: { jar: build/libs/billing.jar }
     deploy_billing_staging:
+      kind: deploy                       # checks out nothing: ships the jar
       stage: staging
       consumes: [billing/jar]
-      paths: []
-      script: ./deploy.sh billing staging
+      script: java -jar "$PIPEMESH_BILLING_JAR" --deploy staging
 ```
 
 Every declared repository must be added to the same Pipemesh
@@ -500,17 +568,20 @@ pins a commit of each, and a push to any of them starts a revision.
 
 ```yaml
 sign_app:
+  kind: transform               # turns the consumed app into a signed one
   stage: release
   tags: [macos]                 # the first tag is the queue; runs only on runners registered to it
   consumes: [build/app]
+  checkout: [scripts/sign-and-notarize.sh]
   secrets: [APPLE_ID_PASSWORD]
   script: ./scripts/sign-and-notarize.sh
+  produces: { signed: out/App.zip }
 ```
 
 Untagged jobs run on Pipemesh's hosted runners. A tagged job never runs
 on hosted compute — it waits for a runner on its queue (the open-source
 `gitlab-runner` agent registered with a token from **My account →
-Runners**).
+Runners**). The checkout is enforced there too.
 
 ## 12. Tests that need a database (there is no `services:`)
 
@@ -521,7 +592,9 @@ becomes two `docker run`s:
 
 ```yaml
 test:
+  kind: build
   stage: test
+  checkout: [src, test, package.json, package-lock.json]
   script: |
     docker run -d --name pg -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
     until docker exec pg pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
@@ -535,8 +608,10 @@ distribution (slower, no Docker needed):
 
 ```yaml
 test:
+  kind: build
   stage: test
   image: node:22-bookworm
+  checkout: [src, test, package.json, package-lock.json]
   script: |
     apt-get update -qq && apt-get install -y -qq postgresql >/dev/null
     pg_ctlcluster "$(ls /etc/postgresql)" main start
@@ -544,3 +619,7 @@ test:
     export DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
     npm ci && npm test
 ```
+
+A test that starts its own database from pinned images is still
+hermetic, so it stays a `build` and reuses when its checkout is
+unchanged.

@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's kind (build, transform, deploy, task, workflow, pipeline) and the files it checks out, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition; offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml.
 ---
 
 # Pipemesh setup
@@ -15,6 +15,11 @@ declares what it runs in one file, `pipemesh.yaml`, at its root:
 - **workflows** — one-shot runs per trigger: pull requests, tags,
   schedules, pushes, manual runs.
 
+Every job says what it is (`kind:` — `build`, `transform`, `deploy`,
+`task`, `workflow` or `pipeline`; no `kind:` means `task`) and what it
+reads (`checkout:`). The kind sets the job's defaults: what it checks
+out and when it may skip.
+
 Your job: read how this repository builds, tests, releases and deploys
 today, and produce a `pipemesh.yaml` (plus `.pipemesh/*.yaml` bodies
 when it grows) that does the same work the Pipemesh way — then validate
@@ -25,7 +30,7 @@ read each one when its step comes up, not all up front.
 
 | File | Read it when |
 | --- | --- |
-| `references/decisions.md` | Step 3 — choosing pipeline vs workflows, and what to ask |
+| `references/decisions.md` | Step 3 — pipeline vs workflows, each job's kind, and what to ask |
 | `references/definition.md` | Step 4 — the grammar (always, before writing YAML) |
 | `references/artifacts-and-caching.md` | Step 4 — produces/consumes, images, cache, remote build caches, runtime variables |
 | `references/patterns.md` | Step 4 — worked shapes from the public demos |
@@ -71,10 +76,15 @@ from names.
 Before writing anything, build a table (for yourself; show it to the
 user in step 6) with one row per existing job or workflow:
 
-| existing job | trigger | purpose | inputs it reads | outputs it hands on | secrets/vars | where it runs | target env |
+| existing job | trigger | purpose | repository files it reads | outputs it hands on | secrets/vars | where it runs | target env |
 
 Purpose is one of: lint/test, build, package/image, release/publish,
-deploy, infra apply, scheduled maintenance, notification. Note how
+deploy, infra apply, scheduled maintenance, notification. For *files it
+reads*, follow the commands, not the job's name: the directories it
+builds, the root files its tools read (`package.json`, lockfiles,
+`tsconfig.json`, `.nvmrc`, `go.mod`, `gradlew` and `gradle/`, `Makefile`),
+the scripts and charts it runs, the files its `cd`, `cat`, `source` and
+`-f` arguments name. That column becomes the job's `checkout:`. Note how
 artifacts move between jobs (upload/download, `artifacts:`, workspace
 persistence), what is cached and keyed on what, which cloud
 credentials are used (static keys vs OIDC), approvals before
@@ -90,6 +100,21 @@ pipeline, a workflow, or nothing. The usual result for an application:
 one `pipeline` (build → staging → production) plus a `checks` workflow
 on pull requests, and workflows for tag releases and schedules. For a
 library: workflows only (checks + release on tag).
+
+Then give each job its kind (decisions.md → *Choosing each job's kind*):
+
+| The job… | kind | checks out by default | skips by default |
+| --- | --- | --- | --- |
+| reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | everything (`true`) | `built`: reuses an earlier run with the same inputs |
+| turns what it consumes into what it produces (sign, package, convert) | `transform` | nothing | `built` |
+| ships what it consumes to an environment — **pipelines only** | `deploy` | nothing | `unchanged`: runs when what it ships changed |
+| must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` (also: no `kind:`) | nothing | `never` |
+| runs a body (a CI suite) as one node and waits for it | `workflow` | its jobs' checkouts | its jobs': `built` if all are builds |
+| hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | nothing | `unchanged` |
+
+A deploy in a workflow is a load error: a pull-request preview or a
+manual hotfix deploy is a `task` there, and isn't tracked as a
+deployment.
 
 Ask the user **before writing** when the answer changes the file and
 the repository can't tell you — typically: pipeline vs workflow for
@@ -121,44 +146,76 @@ The rules that most often go wrong — they differ from other CI systems:
    trigger; one per repository, registered as `pipeline`). Pull
    requests, tags, schedules and manual runs are workflows. Pushes to
    other branches start nothing — ask when the old CI deploys from one.
-3. **Outputs are declared entries, handed only to who names them.** The
+3. **Every job has a `kind:`; write it on every job**, even a task. The
+   kind sets the defaults in the table above; override one on the job
+   when it's wrong for that job (`kind: task` with `skip: built`,
+   `kind: build` with `checkout: [services/orders, libs]`). Deploys and
+   child pipelines exist only in the pipeline; never put
+   `skip: unchanged` in a workflow body.
+4. **`checkout:` is what the job's commands read — and it is
+   enforced.** `true` (the whole repository), `false` (nothing) or a
+   list of paths from the repository root (a path is itself and
+   everything under it; globs cut finer). The job's workspace holds
+   exactly that, plus what it consumes: a file the list leaves out is
+   not there, and the job fails on it. Write it from the inventory's
+   *files it reads* column. A build may keep its default `true` (safe;
+   every commit is then new work for it) or narrow it to the
+   directories it builds plus the root files its tools read
+   (`package.json`, the lockfile, `tsconfig.json`, `.nvmrc`, wrapper
+   scripts) — narrow only with a complete list. A deploy lists its
+   deploy scripts and charts (`checkout: [deploy]`) and gets the
+   artifact through `consumes:`. A task that only reads git history or
+   the commit checks out nothing (history stays complete, so `git log`
+   and `git merge-base` work).
+   The checkout is also the job's fingerprint: a `built`/`unchanged`
+   job runs again only when a file it checks out, or something it
+   consumes, changed. Files named by `${checksum:…}` in the cache key
+   and `publish:` contexts are added for you. `checkout: []` and
+   `checkout: ["**"]` are load errors (write `false` / `true`).
+5. **Outputs are declared entries, handed only to who names them.** The
    producer declares `produces: { dist: dist }`; each consumer declares
    `consumes: [build/dist]` and finds the files at the same path (and
    the path in `$PIPEMESH_BUILD_DIST`). `needs:` orders but passes
    nothing. Deploys consume what the build produced — never rebuild.
-4. **Say what each job reads.** `paths:` absent = the whole repository
-   (runs on every commit). Builds: list their inputs and use
-   `skip: built`. Deploys: `consumes:` the artifact plus
-   `paths: [<deploy scripts/charts>]`, so they run only when what they
-   ship changed. Never put `skip: unchanged` in a workflow body.
-5. **Images you deploy are built and pushed in the script**, then
+6. **A job runs on one executor**: `script:` (Pipemesh's runners),
+   `uses:` (a component) or `github_actions:` (an existing Actions
+   workflow, dispatched and waited for). The executor is where the job
+   runs, not what it is: a deploy on Actions is still `kind: deploy`.
+   An Actions job's checkout is read from its workflow file
+   (`actions/checkout` = `true`, its `sparse-checkout:` = those
+   directories, no checkout step = nothing); Pipemesh can't enforce it.
+   A suite that runs as one node is `kind: workflow` with `body:`; one
+   pipeline per service is `kind: pipeline` with `body:` and
+   `variables:`, handing the revision over only when what it
+   `consumes:` (the service's fingerprint) or `checkout:` lists changed.
+7. **Images you deploy are built and pushed in the script**, then
    recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
    and deployed by digest. `publish:` (no `repo:`) is only for CI images
    your own jobs run in via `image_from:`. Hosted runners are **arm64**:
    what they build is arm64 unless cross-built — check the deploy
    target's architecture and ask if it's amd64.
-6. **Pull-request runs never save caches; they restore what the
+8. **Pull-request runs never save caches; they restore what the
    default-branch jobs saved with the same cache `paths:`.** Key on
    `${checksum:<lockfile>}`, keep paths inside the workspace, and give
    the PR job and the pipeline job that run the same install one shared
    cache definition (`cache: !include .pipemesh/npm-cache.yaml`).
    Remote build caches (Nx Cloud, Turborepo, BuildBuddy) write from the
    default branch only.
-7. **Reuse with `!ref`, `!include` and components**, never YAML
+9. **Reuse with `!ref`, `!include` and components**, never YAML
    anchors or `extends`. Every root key must be reachable from
    `pipemesh:`.
-8. **Secrets are named, not inlined.** List them per job in
+10. **Secrets are named, not inlined.** List them per job in
    `secrets: [NAME]` (non-secret settings in `config: [NAME]`,
    `UPPER_SNAKE_CASE`); values are set in Pipemesh. Pull-request runs
    don't receive secrets unless a secret allows it. Prefer OIDC to
    stored cloud keys: `setup: [{ uses: aws/role@1, with: { arn, region } }]`.
-9. **Images are public and need bash, git, curl and tar** (Debian-based
+11. **Images are public and need bash, git, curl and tar** (Debian-based
    tags like `node:22-bookworm`; not Alpine, distroless or most
    `-slim`). No `image:` = Pipemesh's job image (bash, git, curl, tar,
    jq, AWS CLI, Docker + buildx, Node 20, Python 3.9, Java 25) — pin a
    toolchain image when the project needs other versions. `services:` is
    ignored — start databases in the script (patterns.md §12).
-10. **GitHub `${{ … }}` expressions are not interpolated.** Use the
+12. **GitHub `${{ … }}` expressions are not interpolated.** Use the
     runtime variables (`$CI_COMMIT_SHA`, `$CI_COMMIT_REF_NAME`, …);
     Pipemesh's own `${{ matrix.x }}` and `${{ params.x }}` are load-time.
     Job names are lowercase `[a-z0-9_-]`; quote crons; the default job
@@ -167,15 +224,17 @@ The rules that most often go wrong — they differ from other CI systems:
 Don't invent what you can't see. Keep the project's own commands and
 scripts (the deploy script is the source of truth for *how* to deploy).
 When a step has no faithful translation (an unusual marketplace action,
-a vendor plugin), either delegate that work to the existing GitHub
-Actions workflow or leave a precise `# TODO(pipemesh): …` comment in the
-script and list it in the summary — never a silent approximation.
+a vendor plugin), either run that job on the existing GitHub Actions
+workflow (`github_actions:`) or leave a precise `# TODO(pipemesh): …`
+comment in the script and list it in the summary — never a silent
+approximation.
 
 Prefer a small `pipemesh.yaml` that registers workloads and `!include`s
 bodies from `.pipemesh/` once there is more than one body or the file
 passes ~150 lines. Put the schema modeline at the top of each file.
-Comment the non-obvious decisions in the YAML itself (why a deploy has
-`paths: [deploy]`, why a build has `skip: built`), briefly.
+Comment the non-obvious decisions in the YAML itself (why a deploy
+checks out `[deploy]`, why a build narrows its checkout or a test is a
+task), briefly.
 
 ## Step 5 — Validate
 
@@ -185,18 +244,27 @@ Run the bundled checker from the repository root:
 python3 <this skill's directory>/scripts/check_definition.py .
 ```
 
-It resolves `!include`/`!ref` like the loader, and reports what the
-loader would reject (ERROR) and likely mistakes (WARN). Fix every
-error; fix or consciously accept each warning. If PyYAML is missing,
-`uv run --with pyyaml python3 …` or `pip install pyyaml`; if Python
-isn't available, check by hand against the rules in step 4 and
-definition.md. The checker mirrors the loader's documented rules; the
+It resolves `!include`/`!ref` like the loader, reports what the loader
+would reject (ERROR) and likely mistakes (WARN), and then lists every
+job's effective kind, checkout and skip policy with where each came
+from ("skip: built (from kind: build)"). Fix every error; fix or
+consciously accept each warning — in particular *reads nothing* (the
+job runs once and then skips every revision: give it a checkout or a
+consume, or `skip: never`) and *its script names …, which is not in
+its checkout* (the enforced checkout would fail the job). Read the
+effective list against the inventory: each build checks out what it
+compiles, each deploy what it runs, each task what it needs.
+
+If PyYAML is missing, `uv run --with pyyaml python3 …` or
+`pip install pyyaml`; if Python isn't available, check by hand against
+the rules in step 4 and definition.md. The checker mirrors the loader's documented rules; the
 authoritative check happens when the file reaches the branch of an
 enabled repository, where Pipemesh reports any load error with the
 file and key.
 
 Then re-read the result against the inventory: every row is covered or
-deliberately dropped; every deploy consumes what it ships; nothing
+deliberately dropped; every job has a `kind:`; every deploy is a
+`kind: deploy` in the pipeline and consumes what it ships; nothing
 deploys from a pull request.
 
 ## Step 6 — Summarize

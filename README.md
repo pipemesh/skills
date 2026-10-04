@@ -19,12 +19,17 @@ Sets up Pipemesh for a repository. Ask your agent something like
    replaces a production approval.
 3. **Write** `pipemesh.yaml` (and `.pipemesh/*.yaml` bodies): a pipeline
    that promotes each commit through build → staging → production,
-   workflows for pull requests, tags and schedules, build outputs handed
-   to deploys by digest (`produces:` / `consumes:`), build reuse
-   (`skip: built`), caching, remote build caches, secrets by name, and
-   keyless cloud access (OIDC).
+   workflows for pull requests, tags and schedules, every job's kind
+   (`build`, `transform`, `deploy`, `task`, `workflow`, `pipeline`) and
+   the files it checks out (`checkout:`, read from what its commands
+   use), build outputs handed to deploys by digest (`produces:` /
+   `consumes:`), build reuse, caching, remote build caches, secrets by
+   name, and keyless cloud access (OIDC).
 4. **Validate** the result with a bundled checker that resolves
-   `!include` / `!ref` and reports what the Pipemesh loader would reject.
+   `!include` / `!ref`, reports what the Pipemesh loader would reject,
+   warns about jobs that read nothing or whose scripts name files their
+   checkout leaves out, and lists each job's effective kind, checkout
+   and skip policy.
 5. **Offer a pull request** with the files and a mapping from the old CI.
 6. **Explain how to turn it on**: connecting the GitHub App, enabling the
    repository, the secrets to create, the exact OIDC subjects to trust.
@@ -72,8 +77,8 @@ directory — `~/.claude/skills/` (Claude Code, all projects),
 skills/pipemesh-setup/
 ├── SKILL.md                         the workflow the agent follows
 ├── references/
-│   ├── decisions.md                 pipeline vs workflow, and what to ask
-│   ├── definition.md                the pipemesh.yaml grammar
+│   ├── decisions.md                 pipeline vs workflow, job kinds, and what to ask
+│   ├── definition.md                the pipemesh.yaml grammar (kinds, checkout, executors)
 │   ├── artifacts-and-caching.md     produces/consumes, images, cache, remote caches, variables
 │   ├── patterns.md                  worked shapes from the public demos
 │   ├── migrate-github-actions.md

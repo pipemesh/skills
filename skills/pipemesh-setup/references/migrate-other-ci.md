@@ -3,20 +3,24 @@
 The method is the same everywhere: inventory what runs on which event,
 then sort it into the pipeline (default-branch revisions that build and
 deploy) and workflows (pull requests, tags, schedules, manual runs).
-Ordering always becomes explicit `needs:`/`consumes:` edges, artifacts
-become `produces:`/`consumes:`, and credentials become named `secrets:`
-or OIDC.
+Each job gets a `kind:` (build, transform, deploy, task; `workflow` and
+`pipeline` for nested bodies) and a `checkout:` of the files its
+commands read — most CI systems clone the whole tree for every job, and
+Pipemesh checks out only what the job lists. Ordering always becomes
+explicit `needs:`/`consumes:` edges, artifacts become
+`produces:`/`consumes:`, and credentials become named `secrets:` or
+OIDC.
 
 ## Where the configuration lives
 
 | File | Notes for the translation |
 | --- | --- |
-| `.circleci/config.yml` | `workflows:` with `requires:` → `needs:`; `filters: branches/tags` → which workload the job lands in; `persist_to_workspace`/`attach_workspace` → `produces:`/`consumes:`; `save_cache`/`restore_cache` → `cache:`; orbs → shell commands or registry components; `type: approval` jobs → see onboarding.md → Holding production; `docker:` executor image → `image:` (needs bash, git, curl, tar) |
-| `Jenkinsfile` | `stages { stage { steps { sh … } } }` → jobs with `script:`; `parallel` → sibling jobs with the same `needs:`; `when { branch 'main' }` → pipeline; `when { changeRequest() }` → PR workflow; `input` steps → onboarding.md → Holding production; `stash`/`unstash`/`archiveArtifacts` → `produces:`/`consumes:`; `credentials()`/`withCredentials` → `secrets:`; `agent { label 'x' }` → `tags: [x]` (own runner queue); shared libraries → read what they run and port the commands |
+| `.circleci/config.yml` | `workflows:` with `requires:` → `needs:`; `filters: branches/tags` → which workload the job lands in; `persist_to_workspace`/`attach_workspace` → `produces:`/`consumes:`; `save_cache`/`restore_cache` → `cache:`; the `checkout` step → the job's `checkout:` (no step = `false`); orbs → shell commands or registry components; `type: approval` jobs → see onboarding.md → Holding production; `docker:` executor image → `image:` (needs bash, git, curl, tar); `path-filtering` orb → `checkout:` on each job |
+| `Jenkinsfile` | `stages { stage { steps { sh … } } }` → jobs with `script:`; `parallel` → sibling jobs with the same `needs:`; `when { branch 'main' }` → pipeline; `when { changeRequest() }` → PR workflow; `input` steps → onboarding.md → Holding production; `checkout scm` → the job's `checkout:`; `when { changeset … }` → `checkout:`; `stash`/`unstash`/`archiveArtifacts` → `produces:`/`consumes:`; `credentials()`/`withCredentials` → `secrets:`; `agent { label 'x' }` → `tags: [x]` (own runner queue); shared libraries → read what they run and port the commands |
 | `.buildkite/pipeline.yml` | `steps:` with `depends_on` → `needs:`; `wait` steps → `needs:` on everything before; `block`/`input` steps → onboarding.md → Holding production; `artifact_paths` + `buildkite-agent artifact download` → `produces:`/`consumes:`; `agents: queue=x` → `tags: [x]`; plugins → their underlying commands |
-| `azure-pipelines.yml` | `stages/jobs/steps` → jobs; `dependsOn` → `needs:`; `trigger:`/`pr:` → pipeline vs PR workflow; `PublishPipelineArtifact`/`DownloadPipelineArtifact` → `produces:`/`consumes:`; `Cache@2` → `cache:`; environments with approvals → onboarding.md → Holding production |
-| `bitbucket-pipelines.yml` | `pipelines: default/branches/pull-requests/tags/custom` maps directly onto pipeline / PR workflow / tag workflow / manual workflow; `artifacts:` → `produces:`; `caches:` → `cache:`; `deployment:` steps → deploy jobs in the pipeline |
-| `.travis.yml` | `script`/`install` → `script:`; `deploy:` providers → their CLI commands in a deploy job; `stages` → `needs:` |
+| `azure-pipelines.yml` | `stages/jobs/steps` → jobs; `dependsOn` → `needs:`; `trigger:`/`pr:` → pipeline vs PR workflow; `checkout: none` → `checkout: false`; `PublishPipelineArtifact`/`DownloadPipelineArtifact` → `produces:`/`consumes:`; `Cache@2` → `cache:`; `deployment` jobs → `kind: deploy`; environments with approvals → onboarding.md → Holding production |
+| `bitbucket-pipelines.yml` | `pipelines: default/branches/pull-requests/tags/custom` maps directly onto pipeline / PR workflow / tag workflow / manual workflow; `artifacts:` → `produces:`; `caches:` → `cache:`; `condition: changesets:` → `checkout:`; `deployment:` steps → `kind: deploy` jobs in the pipeline |
+| `.travis.yml` | `script`/`install` → `script:`; `deploy:` providers → their CLI commands in a `kind: deploy` job; `stages` → `needs:` |
 | `cloudbuild.yaml` | each step's `name` image + `args` → a job's `image:` + `script:`; `waitFor` → `needs:` |
 | `Makefile` / `justfile` / `Taskfile.yml` | no CI of their own: the targets are what the jobs call (`script: make test`) |
 
@@ -27,7 +31,7 @@ build/test/deploy instructions, `package.json` scripts, Make targets,
 Dockerfiles, deploy scripts and infrastructure directories. Then:
 
 - Always propose a `checks` workflow on pull requests running the
-  project's real lint and test commands.
+  project's real lint and test commands (`kind: build` jobs).
 - Propose a pipeline only when there is something to ship (a service,
   a site, an image). If no deploy target is visible, ask where it
   deploys rather than inventing one; a pipeline whose last stage builds
