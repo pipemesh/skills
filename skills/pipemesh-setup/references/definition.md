@@ -419,7 +419,7 @@ deploy_prod:
 ci:                                      # run a body as one node; the job waits for its verdict
   job_type: workflow
   stage: verify
-  body: !include .pipemesh/ci.yaml       # a type: workflow body; or !ref <definition>, inline, or workload: <alias>
+  body: !include .pipemesh/ci.yaml       # a type: workflow body; or !ref <definition>, or inline
 
 orders:                                  # hand the revision to a child pipeline (pipelines only)
   job_type: pipeline
@@ -431,8 +431,7 @@ orders:                                  # hand the revision to a child pipeline
     - graph/orders                       # what decides the hand-over
 ```
 
-- Both take `body:` (a body) or `workload:` (an existing workload's
-  alias), `variables:`, `stage:`, `needs:`, `consumes:`, `skip:`,
+- Both take `body:` (the child's body), `variables:`, `stage:`, `needs:`, `consumes:`, `skip:`,
   `timeout_seconds:`, `allow_failure:`, `matrix:` and `was:` — none of
   the executor keys, and no `produces:`: consumers name the body's
   entries by path (`ci/build/dist`).
@@ -442,7 +441,7 @@ orders:                                  # hand the revision to a child pipeline
   a workflow of builds reuses as a whole, entries included; `never` as
   soon as one job runs every time. `skip: never` is its only override;
   `checkout:` on it is a load error. A body that works in another
-  repository, or an existing `workload:`, runs every time. Inside a
+  repository runs every time. Inside a
   workflow run, a nested `job_type: workflow` job runs every time.
 - **`job_type: pipeline`** passes the revision on only when its declared
   inputs changed: the graph job's entry it consumes, or the service's
