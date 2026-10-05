@@ -61,7 +61,7 @@ Preview of the board: <the link from npx pipemesh preview> (open until <date>)
 ## Before merging
 - [ ] Repository enabled in Pipemesh (it waits for this file on `main`)
 - [ ] Secrets created in Pipemesh: `…`
-- [ ] Cloud trust for the job identities: `…`
+- [ ] Cloud trust for the job identities (subjects from `npx pipemesh identity` once this is merged): `…`
 - [ ] <anything else this definition needs>
 
 The existing CI keeps running until we turn it off; nothing here changes it.
@@ -146,35 +146,56 @@ List the exact names in your message.
 
 ### 4. Cloud access without stored keys (if the definition uses `aws/role@1` or identity tokens)
 
-Pipemesh is an OIDC issuer; trust it once per cloud account:
+Pipemesh is an OIDC issuer; trust it once per cloud account. **Don't
+compose the values: read them.** Subjects are written with ids (the
+GitHub repository's and each job's), so they can't be derived from
+names. Once the repository is enabled and the definition that declares
+the jobs is on its branch:
 
-- **Issuer / provider URL:** `https://pipemesh.io/api/oidc`
+```bash
+npx pipemesh identity                 # the repository you're in
+npx pipemesh identity <org>/<repo>    # another one
+npx pipemesh identity --json          # the same, to read in a script
+```
+
+(pipemesh CLI 0.6.0 or later.) It prints the issuer and each job's
+subject on the repository's branch. It also prints one line for every
+job of the repository, for parties that match patterns. The
+repository's **Settings → Job identity** page in Pipemesh shows the same
+values.
+
+- **Issuer / provider URL:** the `Issuer` line (`https://pipemesh.io/api/oidc`)
 - **Audience:** `sts.amazonaws.com` for AWS (or what the party documents)
-- **Subject:** one per job allowed in:
-  `pipeline:<workload alias>:<context>:job:<job>`
+- **Subject:** the line of each job allowed in, e.g.
+  `repo:1084047182:job:k2m9x4pq:ref:refs/heads/main`. Trust only the
+  jobs that need the access. Use the "every job" line
+  (`repo:<id>:job:*:ref:refs/heads/main`) only where the party matches
+  patterns (AWS `StringLike`, Google Cloud conditions), and only for
+  read-only access such as a cache.
 
-Compute the subjects for the user. The workload alias is the
-workload's page path without the leading `/`, with `/-/` and every `/`
-after it turned into `:`:
+What changes a subject, and what doesn't:
+- **No change:** renaming the repository or its organization, renaming
+  a job with `was:`, and transferring the repository to another owner.
+  Trusts follow the repository.
+- **A new subject:** a new job (or a job renamed without `was:`). Run
+  `npx pipemesh identity` again once the definition with it is on the
+  branch, and add it to the trust.
 
-| Job | Page | Subject (repository added on `main`) |
-| --- | --- | --- |
-| `deploy_staging` in the repo's pipeline | `/github.com/acme/shop/-/pipeline` | `pipeline:github.com/acme/shop:pipeline:ref:refs/heads/main:job:deploy_staging` |
-| `build` in child pipeline `orders` | `/github.com/acme/shop/-/pipeline/orders` | `pipeline:github.com/acme/shop:pipeline:orders:ref:refs/heads/main:job:build` |
-| `compile` inside the body the pipeline's `build` job (`job_type: workflow`) runs | `/github.com/acme/shop/-/pipeline/build` | `pipeline:github.com/acme/shop:pipeline:build:ref:refs/heads/main:job:compile` |
-| `publish` in workflow `release`, on a tag | `/github.com/acme/shop/-/release` | `pipeline:github.com/acme/shop:release:ref:refs/tags/v1.2.3:job:publish` (trust with a `StringLike` on `…:release:ref:refs/tags/v*:job:publish`) |
+A job's subject exists once the definition that declares it is on the
+repository's branch. So set up the trust after merging. If the job ran
+first and failed to assume the role, re-run it (`npx pipemesh rerun
+<job>`).
 
-Contexts: `ref:refs/heads/<branch>` (pipeline revisions and push,
-schedule and manual runs — `<branch>` is the branch the repository was
-added with), `ref:refs/tags/<tag>`, `pull_request`. Use the real branch
-name from step 1 of the survey; a trust pinned to `main` refuses jobs
-from any other branch. **Never trust `pull_request`
-for anything that can write** — anyone who can open a PR runs code
-there. Wildcards over the context let PRs in; wildcards over the job
-name after a pinned context don't.
+Contexts: the subjects listed are for the repository's branch. A
+pull request's run of the same job gets `…:pull_request`. **Never trust
+`pull_request` for anything that can write**: anyone who can open a PR
+runs code there. A job that runs on tags gets `…:ref:refs/tags/<tag>`:
+take its listed subject and replace `ref:refs/heads/<branch>` with
+`ref:refs/tags/v*` in a `StringLike`.
 
 AWS example trust policy (the IAM OIDC provider for
-`pipemesh.io/api/oidc` created once per account):
+`pipemesh.io/api/oidc` created once per account), with the subject read
+from `npx pipemesh identity`:
 
 ```json
 {
@@ -184,7 +205,7 @@ AWS example trust policy (the IAM OIDC provider for
   "Condition": {
     "StringEquals": {
       "pipemesh.io/api/oidc:aud": "sts.amazonaws.com",
-      "pipemesh.io/api/oidc:sub": "pipeline:github.com/acme/shop:pipeline:ref:refs/heads/main:job:deploy_staging"
+      "pipemesh.io/api/oidc:sub": "<the deploy_staging line from npx pipemesh identity>"
     }
   }
 }

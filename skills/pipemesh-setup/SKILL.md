@@ -415,8 +415,11 @@ connect the GitHub App, enable the repository, add the secrets and
 config this definition names, set up cloud trust for the exact job
 identities it uses, and what to watch after merging. Follow
 `references/onboarding.md`, and tailor it: list the real secret names,
-compute the real OIDC subjects for this repository's jobs, and skip
-sections that don't apply.
+name the jobs that need cloud access, and skip sections that don't
+apply. Never compose an OIDC subject: they're written with ids. Once
+the repository is enabled and the definition merged, read them with
+`npx pipemesh identity` (or offer to), and give the user the issuer and
+the exact subject lines of those jobs for their trust policies.
 
 Offer to do the first part from the terminal: `npx pipemesh login`
 (show the user the code and page it prints; they approve it in the
@@ -437,6 +440,7 @@ Once the repository is enabled, answer questions about it with the CLI
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
 | Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
 | Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs) |
+| What do I put in a cloud trust? | `npx pipemesh identity` — the issuer and each job's subject (never compose one) |
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
 | Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, waiting for approval, failed, rolled back, or not yet; exit 0 when every one has it |
 
