@@ -455,4 +455,5 @@ Acting on it changes something, so ask the user first, every time
 | Run a failed job again | `npx pipemesh rerun <job>`; a workflow run's: `rerun <workflow> --run=<n>` |
 | Cancel | `npx pipemesh cancel <job>` (or `<workflow> --run=<n>`); add `--yes` only once the user said so |
 | Roll back | `npx pipemesh rollback <job> [--to=<n>]`: it runs the last good revision again and holds the job; add `--yes` only once the user said so |
+| Report a Pipemesh problem | when a Pipemesh command or page fails in a way the definition doesn't explain (a 5xx, a hang, a load error that contradicts the docs), offer to report it; on a yes, `npx pipemesh report "<what happened, and what you expected>"` — it sends the CLI's last API calls (no bodies or credentials) and versions; give the user the report id it prints |
 | Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--org` for the account or organization |
