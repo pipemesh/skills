@@ -127,7 +127,7 @@ to go:
 - **Cross-compile** where the toolchain can (Go with `GOARCH`, a JVM
   jar, a JS bundle): a `FROM --platform=$BUILDPLATFORM` build stage
   compiles for the target, no emulation needed.
-- **Emulate**: `docker run --privileged --rm tonistiigi/binfmt --install amd64`,
+- **Emulate** (on a `dockerd: true` job): `docker run --privileged --rm tonistiigi/binfmt --install amd64`,
   then `docker buildx build --platform linux/amd64 --push --metadata-file meta.json …`
   (several times slower for emulated `RUN` steps). For one tag with
   both platforms, `docker buildx create --use` first and pass
@@ -147,14 +147,15 @@ pipemesh.io/docs/hosted-runners → *Building for both architectures*.
 **1. An image your cluster or platform deploys** (ECR, GHCR, Docker
 Hub, GAR): build and push in the script, then declare it as an `oci`
 entry with the `pipemesh produce` helper, which verifies the digest in
-the registry. Run it with no `image:` — Pipemesh's job image has
-Docker, buildx and the AWS CLI, and hosted runners start the Docker
-daemon for you.
+the registry. Run it with no `image:` — Pipemesh's job image has the
+Docker CLI, buildx and the AWS CLI — and with `dockerd: true`, which
+gives the job a Docker daemon.
 
 ```yaml
 image:
   job_type: build
   stage: build
+  dockerd: true                   # docker build needs a daemon
   checkout:                       # all the Dockerfile COPYs
     - src
     - package.json
