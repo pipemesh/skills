@@ -127,7 +127,7 @@ deploy_staging:
 | `${{ github.repository }}` | write it literally (`acme/shop`) |
 | `${{ github.run_id }}` / `run_number` | no equivalent; use `$CI_COMMIT_SHORT_SHA` for unique names |
 | `${{ secrets.X }}` | `$X`, with `X` listed in the job's `secrets:` |
-| `${{ vars.X }}` | `$X`, with `X` listed in the job's `config:` |
+| `${{ vars.X }}` | `$X`, with `X: !settings` under the job's `variables:` |
 | `${{ env.X }}` | `$X` |
 | `${{ inputs.x }}` | `$x` (workflow inputs keep their names) |
 | `${{ matrix.x }}` | `${{ matrix.x }}` (same syntax, load time) |

@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.9.0;
+**Before Step 1, check this skill is current** (it is version 0.10.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.9.0
+npx pipemesh@latest version --skill=0.10.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -313,8 +313,10 @@ The rules that most often go wrong — they differ from other CI systems:
    `pipemesh:`, and every body, job or component reached that way
    carries its `type:` (rule 4).
 12. **Secrets are named, not inlined.** List them per job under
-   `secrets:` (non-secret settings under `config:`, `UPPER_SNAKE_CASE`);
-   values are set in Pipemesh. Pull-request runs don't receive secrets
+   `secrets:`; a non-secret setting is a variable the job declares with
+   `NAME: !settings` under `variables:` (`UPPER_SNAKE_CASE`). Values are
+   set in Pipemesh, and a name has one source: never `!settings` and a
+   value in the definition both. Pull-request runs don't receive secrets
    unless a secret allows it. Prefer OIDC to stored cloud keys; the
    OIDC provider and the roles jobs assume go in a bootstrap stack the
    user deploys by hand, never in the pipeline that needs them to log in
@@ -334,9 +336,10 @@ The rules that most often go wrong — they differ from other CI systems:
    Node 24, the AWS CLI, the Docker CLI + buildx and `sudo` (no Java) —
    pin a toolchain image when the project needs other versions. A job
    that must not follow image updates (a deploy that changes the
-   platform it runs on) can name its image in the repository's
-   configuration: `image: !config DEPLOY_IMAGE`, the variable holding a
-   full reference pinned by digest (definition.md → Tags). `services:` is
+   platform it runs on) can take its image from a Settings variable:
+   `DEPLOY_IMAGE: !settings` under `variables:` and
+   `image: !var DEPLOY_IMAGE`, the variable holding a full reference
+   pinned by digest (definition.md → Tags). `services:` is
    ignored — start databases in the script (patterns.md §12).
 14. **GitHub `${{ … }}` expressions are not interpolated.** Use the
     runtime variables (`$CI_COMMIT_SHA`, `$CI_COMMIT_REF_NAME`, …);
