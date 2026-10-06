@@ -240,11 +240,12 @@ pipeline:
 - An image build is a `build`, not a deploy: the image is an output
   that the deploys ship.
 - Helm/kubectl aren't in the job image; install them in the script
-  (pinned version, `linux-arm64` build) or run the deploy in an image
+  (pinned version, the build for the runner's architecture — `linux-arm64`
+  by default) or run the deploy in an image
   that has them plus bash, git, curl and tar.
-- The image is **arm64** (hosted runners are Graviton). If the cluster
-  runs amd64 nodes, see artifacts-and-caching.md → Images before
-  choosing how to build it.
+- The image is the build job's runner's architecture: **arm64** by
+  default. If the cluster runs amd64 nodes, see artifacts-and-caching.md
+  → Images (a `linux-amd64-*` runner builds it natively).
 - `publish:` is for CI images Pipemesh keeps (pattern 8), not for images
   your cluster pulls.
 

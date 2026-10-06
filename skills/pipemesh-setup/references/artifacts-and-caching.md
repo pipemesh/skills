@@ -111,14 +111,19 @@ nothing.
 
 Three cases; pick by who pulls the image.
 
-**Architecture first.** Pipemesh's hosted runners are **Linux arm64**.
-Every `image:` needs an arm64 variant (the official language images
-have one), and what a job builds — `docker build` and `publish:`
-images, native modules `npm ci` compiles or downloads, prebuilt output
-such as `vercel build`'s — is arm64 unless the job asks for another
-platform. When the deploy target is amd64 (most x86 clusters, many PaaS
-runtimes), ask the user which way to go:
+**Architecture first.** Pipemesh's hosted runners are **Linux arm64**
+by default and **amd64** when the job names a `linux-amd64-*` size.
+Every `image:` needs a variant for the job's architecture (the official
+language images have both), and what a job builds — `docker build` and
+`publish:` images, native modules `npm ci` compiles or downloads,
+prebuilt output such as `vercel build`'s — is its runner's architecture
+unless the job asks for another platform. When the deploy target is
+amd64 (most x86 clusters, many PaaS runtimes), ask the user which way
+to go:
 
+- **Build on amd64**: `runner: linux-amd64-small` (or `-medium`) on the
+  job that builds it — native, no emulation; `publish:` there builds
+  amd64.
 - **Cross-compile** where the toolchain can (Go with `GOARCH`, a JVM
   jar, a JS bundle): a `FROM --platform=$BUILDPLATFORM` build stage
   compiles for the target, no emulation needed.
@@ -128,14 +133,16 @@ runtimes), ask the user which way to go:
   both platforms, `docker buildx create --use` first and pass
   `--platform linux/amd64,linux/arm64`.
 - **Deploy arm64** (Graviton nodes) and keep the native build.
-- **Build elsewhere**: an amd64 runner of their own (`runner: <name>`), or keep
+- **Build elsewhere**: a runner of their own (`runner: <name>`), or keep
   the image build in GitHub Actions (`github_actions:` on the build
   job).
 
-`publish:` always builds arm64. Platforms that build remotely
-(`flyctl deploy --remote-only`, `vercel deploy` without `--prebuilt`)
-are unaffected. Details: pipemesh.io/docs/hosted-runners → *Building
-for amd64*.
+`publish:` builds its runner's architecture. Platforms that build
+remotely (`flyctl deploy --remote-only`, `vercel deploy` without
+`--prebuilt`) are unaffected. A cache key whose files are native builds
+names the architecture when jobs of both share it
+(`deps-amd64-${checksum:package-lock.json}`). Details:
+pipemesh.io/docs/hosted-runners → *Building for both architectures*.
 
 **1. An image your cluster or platform deploys** (ECR, GHCR, Docker
 Hub, GAR): build and push in the script, then declare it as an `oci`

@@ -92,11 +92,12 @@ question:
    child pipeline per service (each with its own board)? Recommend the
    child pipelines when services deploy independently and there are
    more than two or three of them.
-6. **Image architecture.** Hosted runners are arm64. When the
-   repository builds container images or native binaries that run on
-   amd64 machines, ask how to build them — cross-compile, emulate with
-   QEMU, deploy arm64, or build elsewhere (artifacts-and-caching.md →
-   Images) — instead of silently producing arm64 artifacts.
+6. **Image architecture.** Hosted runners are arm64 unless a job names
+   a `linux-amd64-*` size. When the repository builds container images
+   or native binaries that run on amd64 machines, ask how to build them
+   — on an amd64 runner, cross-compile, emulate with QEMU, or deploy
+   arm64 (artifacts-and-caching.md → Images) — instead of silently
+   producing arm64 artifacts.
 7. **What happens to the old CI.** Keep it running side by side for a
    while (safest; recommended), convert Actions workflows to be
    dispatched by Pipemesh, or remove them in the same PR.
