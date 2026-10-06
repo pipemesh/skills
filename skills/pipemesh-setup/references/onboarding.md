@@ -130,7 +130,7 @@ definition lists (names are `UPPER_SNAKE_CASE`):
   available to every kind of run **except pull requests**; a PR job
   that declares it runs without it. Tick **pull request** only for
   read-only credentials (e.g. a read-only cache key).
-- `config:` names → plain configuration variables.
+- `NAME: !settings` under `variables:` → plain variables.
 - A job that declares a name that isn't set fails before its script,
   saying which.
 

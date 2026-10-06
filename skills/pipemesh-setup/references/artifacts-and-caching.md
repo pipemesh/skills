@@ -394,7 +394,7 @@ the tag); `github.base_ref` → `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME`;
 `github.event.pull_request.number` → `$CI_MERGE_REQUEST_IID`;
 `github.workspace` → `$PIPEMESH_WORKSPACE`; `github.event_name` →
 `$CI_PIPELINE_SOURCE` (values above); `secrets.X` → `$X` with `X` in
-`secrets:`; `vars.X` → `$X` with `X` in `config:`; `matrix.x` →
+`secrets:`; `vars.X` → `$X` with `X: !settings` under `variables:`; `matrix.x` →
 `${{ matrix.x }}` (load time) or `$x`.
 
 ## Legacy artifacts
