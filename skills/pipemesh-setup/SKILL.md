@@ -310,13 +310,23 @@ The rules that most often go wrong — they differ from other CI systems:
    ```
 13. **Images are public and need bash, git, curl and tar** (Debian-based
    tags like `node:22-bookworm`; not Alpine, distroless or most
-   `-slim`). No `image:` = Pipemesh's job image (bash, git, curl, tar,
-   jq, AWS CLI, Docker + buildx, Node 20, Python 3.9, Java 25) — pin a
-   toolchain image when the project needs other versions. `services:` is
+   `-slim`). No `image:` = Pipemesh's job image: Ubuntu 24.04 like
+   GitHub's runners, with git, curl, wget, jq, make, zip, Python 3.12,
+   Node 24, the AWS CLI, the Docker CLI + buildx and `sudo` (no Java) —
+   pin a toolchain image when the project needs other versions. A job
+   that must not follow image updates (a deploy that changes the
+   platform it runs on) can name its image in the repository's
+   configuration: `image: !config DEPLOY_IMAGE`, the variable holding a
+   full reference pinned by digest (definition.md → Tags). `services:` is
    ignored — start databases in the script (patterns.md §12).
 14. **GitHub `${{ … }}` expressions are not interpolated.** Use the
     runtime variables (`$CI_COMMIT_SHA`, `$CI_COMMIT_REF_NAME`, …);
     Pipemesh's own `${{ matrix.x }}` and `${{ params.x }}` are load-time.
+    For release numbers, a pipeline job gets `$PIPEMESH_REVISION` and a
+    workflow job `$PIPEMESH_RUN_NUMBER`; both only grow
+    (`:r$PIPEMESH_REVISION`). Write them where a release is applied (a
+    tag), never into what a build produces: a reused build keeps what it
+    built then.
     Job names are lowercase `[a-z0-9_-]`; quote crons; the default job
     timeout is one hour (`timeout_seconds:` for longer).
 

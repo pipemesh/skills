@@ -181,8 +181,8 @@ Why it is shaped like this:
 Build and push in the script, then record the image as an `oci` entry
 with `pipemesh produce` (it verifies the digest in the registry).
 Consumers get `registry/repo@sha256:…`. No `image:` on the build job:
-Pipemesh's job image has Docker, buildx and the AWS CLI, and hosted
-runners start the Docker daemon.
+Pipemesh's job image has the Docker CLI, buildx and the AWS CLI, and
+`dockerd: true` gives the job a Docker daemon.
 
 ```yaml
 pipeline:
@@ -195,6 +195,7 @@ pipeline:
     image:
       job_type: build
       stage: build
+      dockerd: true                              # docker build needs a daemon
       # docker build . sends this as the build context: list everything
       # the Dockerfile COPYs, plus .dockerignore
       checkout:

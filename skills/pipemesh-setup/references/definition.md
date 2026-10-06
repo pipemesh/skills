@@ -64,6 +64,18 @@ pipemesh:
   file the tag is written in** (never across files). A whole value only
   — never part of a string, never merged with sibling keys. A `!ref`
   list item whose value is a list splices its items in.
+- `image: !config NAME`: the job's image is the value of the repository
+  configuration variable `NAME` (`UPPER_SNAKE_CASE`, holding a full image
+  reference, best pinned by digest). Only `image:` takes it; secrets
+  never can. Configuration belongs to the revision: each revision
+  resolves the name against the configuration it pins, so changing the
+  variable (`npx pipemesh vars set NAME …`) starts a revision that runs
+  in the new image, and a rollback restores the old one. A name that
+  isn't set, or a value that isn't an image reference, stops the
+  revision (the definition doesn't load), so set the variable before
+  the definition that names it lands. The name counts as read, as if
+  under `config:`. `npx pipemesh check` can't read the configuration and
+  checks the name only.
 - YAML anchors, aliases and merge keys (`&x`, `*x`, `<<:`) are load
   errors. `!ref` is the one way to reuse a value.
 - Larger repos: keep `pipemesh.yaml` short and put bodies in
@@ -233,7 +245,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `github_actions` | run the job as a GitHub Actions workflow and wait for it: the file (`deploy.yml`), or a map of `workflow`, `ref`, `inputs`, `artifacts` |
 | `setup` | a list of steps, each `uses:` (and `with:`): script-only components prepended to `script` |
 | `body` / `workload` | `job_type: workflow` and `job_type: pipeline` only: the body to run (`!ref`, `!include`, inline; its `type:` matches the job type), or an existing workload's alias |
-| `image` | a **public** container image with bash, git, curl and tar (private images: build them with `publish:` + `image_from`) |
+| `image` | a **public** container image with bash, git, curl and tar (private images: build them with `publish:` + `image_from`), or `!config NAME`: the image a repository configuration variable names (Tags above) |
 | `image_from` | run in an image another job built: `<job>/<oci key>` (exclusive with `image`) |
 | `services` | loads but is **ignored** by the runners — start services in the script (patterns.md §12) |
 | `variables` | job variables (strings); on `job_type: workflow`/`pipeline`, the child's variables |
@@ -643,4 +655,4 @@ Add the modeline at the top of each file — definition:
 `# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json`;
 `.pipemesh/*.yaml` bodies: `…/pipemesh-body.schema.json`;
 components: `…/pipemesh-component.schema.json`. In VS Code settings, add
-`!include scalar` and `!ref scalar` to `yaml.customTags`.
+`!include scalar`, `!ref scalar` and `!config scalar` to `yaml.customTags`.
