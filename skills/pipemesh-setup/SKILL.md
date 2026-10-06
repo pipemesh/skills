@@ -31,6 +31,18 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
+**Before Step 1, check this skill is current** (it is version 0.8.1;
+the version below changes with it):
+
+```bash
+npx pipemesh@latest version --skill=0.8.1
+```
+
+If it says a newer pipemesh-setup skill is out, tell the user, with the
+update line it prints, and ask whether to update first or go on with
+this one. Pipemesh's grammar moves; an old skill writes what an old
+Pipemesh accepted. If the command can't reach Pipemesh, go on.
+
 | File | Read it when |
 | --- | --- |
 | `references/decisions.md` | Step 3 — pipeline vs workflows, each job's `job_type:`, and what to ask |
