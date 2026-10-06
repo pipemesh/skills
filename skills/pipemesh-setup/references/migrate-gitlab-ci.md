@@ -1,7 +1,7 @@
 # Migrating from GitLab CI (.gitlab-ci.yml)
 
 Pipemesh's job keys look familiar to GitLab users (`stage`, `script`,
-`needs`, `image`, `variables`, `tags`, `cache`, `retry`,
+`needs`, `image`, `variables`, `cache`, `retry`,
 `allow_failure`), and jobs run on the `gitlab-runner` agent, so the
 core `CI_COMMIT_*` variables keep working. The semantics around them
 differ in a few deep ways — read this before translating.
@@ -76,7 +76,9 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `allow_failure:` | same |
 | `retry:` | `retry: <n>` |
 | `timeout: 1h` | `timeout_seconds: 3600` |
-| `tags:` (runner labels) | `tags:` — the first tag is the queue of your own runners; drop tags for hosted runners |
+| `tags:` (runner labels) | `runner: <name>` — one runner of the organization's own (`npx pipemesh runners create <name>`); drop it for hosted runners, or name a hosted size (`runner: linux-arm64-medium`) |
+| `KUBERNETES_CPU_REQUEST` / `KUBERNETES_MEMORY_*` variables | refused: name a size with `runner:` |
+| `services: [docker:dind]`, `DOCKER_HOST` | `dockerd: true`: the job gets its own Docker daemon |
 | `parallel: matrix:` | `matrix:` (`as: jobs` for independent lanes, `as: workflow` for one verdict) |
 | `environment: name: production` | `job_type: deploy` with `production: true` in the pipeline (a staging environment: `production: false`); the board shows what each job deployed. A review app per MR is a `job_type: task` in the PR workflow |
 | `resource_group:` / `interruptible:` | not needed: a pipeline job runs one revision at a time and newer revisions supersede queued ones |

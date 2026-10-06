@@ -49,8 +49,10 @@ job.
 | --- | --- |
 | `jobs.<id>` | a job with a `job_type:` (decisions.md → *Choosing each job's job_type*); ids become lowercase `[a-z0-9_-]` (`deploy-staging` → `deploy_staging` or keep the hyphen) |
 | `needs:` | `needs:` — plus `consumes:` where an output is passed |
-| `runs-on: ubuntu-*` | nothing (hosted runners); pick `image:` for the toolchain |
-| `runs-on:` self-hosted labels / `macos-*` / `windows-*` | `tags:` (the first is your runners' queue) and a registered runner — or run the job on Actions (`github_actions:`) |
+| `runs-on: ubuntu-*` | nothing (the hosted `linux-arm64-small`); pick `image:` for the toolchain. Hosted runners are **arm64**: a tool downloaded for x86-64 needs its arm64 build. A job that needs more memory or cores: `runner: linux-arm64-medium` |
+| `runs-on: ubuntu-*-xl` / larger GitHub runners | `runner: linux-arm64-large` or `-xlarge` (4 GiB per vCPU nearly) |
+| `runs-on:` self-hosted labels / `macos-*` / `windows-*` | `runner: <name>` — a runner the organization creates (`npx pipemesh runners create <name>`) and joins machines to — or run the job on Actions (`github_actions:`) |
+| a step running `docker`, Testcontainers or `docker compose` | `dockerd: true` on the job (`publish:` jobs get it already) |
 | `container: image` | `image:` |
 | `services:` | not supported (ignored): start it in the script — patterns.md §12 |
 | `steps: - run:` | lines of `script:` (one shell, `set -e`; `working-directory:` → `cd`; `shell: python` → `python - <<'EOF'`) |

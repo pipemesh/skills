@@ -244,9 +244,10 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `produces` | entries this job outputs (files, images, packages) |
 | `publish` | build + push an image from a directory; `key:` makes it an `oci` entry |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
-| `tags` | runner queue (first tag); untagged = hosted runners |
+| `runner` | where it runs: a hosted size — `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26), `-xlarge` (16 / 52) — or the organization's own runner by name |
+| `dockerd` | `true`: the job gets a Docker daemon (Testcontainers, `docker compose`, `docker build`); `publish:` implies it. Without it the `docker` CLI has no daemon |
 | `matrix` | load-time expansion |
-| `timeout_seconds` | integer; default 3600 on Pipemesh runners — raise it for long builds and deploys |
+| `timeout_seconds` | integer; default 3600 on Pipemesh runners, and at most 3600 on hosted ones |
 | `retry` | re-attempts a failed job in a workflow run |
 | `allow_failure` | `true`: a failure doesn't block what follows (the job publishes nothing) |
 | `repo`, `repos` | work in / mount another declared repository |
@@ -371,8 +372,8 @@ revision. It loads, with a warning; give it its inputs or `skip: never`.
 A `build`, `deploy` or `task` names exactly one executor:
 
 - **`script:`** (with `setup:`, `image:`, `image_from:`, `services:`,
-  `tags:`, `cache:`, `publish:`, `secrets:`): Pipemesh's hosted
-  runners, or your own (`tags:`).
+  `runner:`, `dockerd:`, `cache:`, `publish:`, `secrets:`): Pipemesh's
+  hosted runners, or your own (`runner: <name>`).
 - **`uses:`**: a component, which brings the execution keys.
 - **`github_actions:`**: an Actions workflow, dispatched and waited for.
   The executor is where the job runs, not what it is: a deploy that
@@ -398,8 +399,8 @@ deploy_prod:
   `pipemesh_sha` and `pipemesh_run` are reserved) and `artifacts`. The
   job takes `consumes:` and `produces:` (an entry `dist: file` under
   `produces:` imports the run's Actions artifact named `dist`), and none of
-  `script`, `setup`, `uses`, `image`, `image_from`, `services`, `tags`,
-  `secrets`, `cache`, `publish`, `artifacts` — secrets stay in GitHub.
+  `script`, `setup`, `uses`, `image`, `image_from`, `services`, `runner`,
+  `dockerd`, `secrets`, `cache`, `publish`, `artifacts` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
   over every job of it and of each local reusable workflow it calls:
   `actions/checkout` with `sparse-checkout:` → those directories (plus
@@ -544,7 +545,7 @@ job:
   rest is `params:` and `job:`. (A param's `type:` is its value type,
   unrelated to the component's shape.)
 - Placement keys (`type`, `job_type`, `checkout`, `stage`, `needs`,
-  `skip`, `tags`, timeouts, `consumes`, `produces`, `secrets`, `cache`,
+  `skip`, `runner`, timeouts, `consumes`, `produces`, `secrets`, `cache`,
   `publish`) stay on the job; execution keys (`script`, `setup`,
   `image`, `services`) belong to the component — declaring one beside
   `uses:` is a load error. The job's `checkout:` must cover what the

@@ -94,7 +94,8 @@ the scripts and charts it runs, the files its `cd`, `cat`, `source` and
 artifacts move between jobs (upload/download, `artifacts:`, workspace
 persistence), what is cached and keyed on what, which cloud
 credentials are used (static keys vs OIDC), approvals before
-production, matrices, services (databases), self-hosted runner labels,
+production, matrices, services (databases), Docker in jobs (→ `dockerd: true`),
+memory-hungry jobs (→ a bigger `runner:`), self-hosted runner labels,
 concurrency groups. Also note what is *not* in CI but obviously part of
 the release (a deploy script the README tells people to run by hand) —
 mention it, don't automate it unasked.
