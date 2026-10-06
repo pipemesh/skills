@@ -180,7 +180,7 @@ Judgment calls:
 - **A build that reads only part of the tree** keeps `job_type: build` and
   narrows `checkout:`, coarsely: its directories (a service and the
   libraries it uses), or `"**"` minus what it doesn't read (`"!docs"`,
-  `"!**/*.md"`). A wrong narrowing fails the job on the missing file;
+  `"!**/*.md"`; git's reading, definition.md). A wrong narrowing fails the job on the missing file;
   a list of loose files is the easiest way to get one wrong.
 - **A deploy reads its scripts, not the source**: its `checkout:`
   lists `deploy` (or `charts/app` and `scripts/deploy.sh`), plus

@@ -241,7 +241,8 @@ The rules that most often go wrong — they differ from other CI systems:
    *files it reads* column, **as coarse as it can be**: `true`, a few
    whole directories, or the whole repository minus what the job
    doesn't read, `["**", "!docs", "!**/*.md"]` (an entry starting with
-   `!` takes away what it matches and everything under it). Never a long
+   `!` excludes; git reads the list: the most specific path decides, the
+   last entry breaks a tie). Never a long
    list of loose root files: it goes stale when a file is added, and the
    job fails on it. A build keeps `true` unless it plainly reads part of
    the tree (one service of a monorepo: its directory, the shared

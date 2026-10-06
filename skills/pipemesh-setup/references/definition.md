@@ -349,11 +349,15 @@ checkout:                 # everything but these
   lockfiles, `tsconfig.json`, `.nvmrc`, `gradlew` + `gradle/`,
   `Makefile`, tool pins); `"**"` minus what it doesn't read keeps them.
   A deploy lists the directory of scripts and charts it runs.
-- **Exclusions**: an entry starting with `!` takes away what it matches,
-  and everything under it, from what the other entries select; order
-  doesn't matter. `"**"` stands in a list only beside an exclusion; a
-  list of exclusions alone is a load error. Quote them in YAML
-  (`- "!docs"`): a bare `!` starts a tag.
+- **Exclusions**: an entry starting with `!` excludes, and the list is
+  read as git reads a sparse checkout: each file follows the most specific
+  path an entry matches (the file, then its directory, then the one
+  above), and among entries on the same path, the last one. So
+  `["**", "!docs"]` is everything but `docs/`, `["**", "!docs",
+  "docs/api"]` keeps `docs/api`, and `["**", "!**/*.md"]` drops every
+  Markdown file. `"**"` stands in a list only beside an exclusion; a list
+  of exclusions alone is a load error. Quote them in YAML (`- "!docs"`):
+  a bare `!` starts a tag.
 - **History is always complete**: the fetch is never shallow, so
   `git log`, `git diff` between commits and `git merge-base` work even
   with `checkout: false`.
