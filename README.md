@@ -63,6 +63,19 @@ directory — `~/.claude/skills/` (Claude Code, all projects),
 `.claude/skills/` (Claude Code, this project), or `.agents/skills/`
 (most other agents).
 
+### Updates
+
+The skill checks that it is the latest when it starts
+(`npx pipemesh@latest version --skill=<its version>`) and tells you how
+to update it. Claude Code updates the plugin when you run
+`/plugin marketplace update pipemesh`, or by itself once you turn on
+auto-update under `/plugin` → Marketplaces. With the `skills` installer,
+run `npx skills update`; a copy made by hand, copy it again.
+
+Releasing: bump `version` in `.claude-plugin/plugin.json` (the only place
+it is set) and the same version in the check at the top of `SKILL.md`.
+Pipemesh reads `plugin.json` on `main` to know the latest.
+
 ## Requirements
 
 - `git`. The GitHub CLI (`gh`) to open the pull request (otherwise the
