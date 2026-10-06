@@ -128,7 +128,7 @@ runtimes), ask the user which way to go:
   both platforms, `docker buildx create --use` first and pass
   `--platform linux/amd64,linux/arm64`.
 - **Deploy arm64** (Graviton nodes) and keep the native build.
-- **Build elsewhere**: an amd64 runner of their own (`tags:`), or keep
+- **Build elsewhere**: an amd64 runner of their own (`runner: <name>`), or keep
   the image build in GitHub Actions (`github_actions:` on the build
   job).
 

@@ -224,18 +224,22 @@ installed the App before must accept the permission request on GitHub
 the `workflow_dispatch` inputs `pipemesh_sha` and `pipemesh_run` on the
 default branch before the first dispatch.
 
-### 6. If jobs use `tags:` (your own runners)
+### 6. If jobs name a runner of your own (`runner: <name>`)
 
-**My account → Runners** → create a registration token for the queue
-(the job's first tag), then on the machine:
+The organization's owner creates the runner — in **Settings →
+Organization → Runners**, or from the repository:
 
 ```bash
-gitlab-runner register --non-interactive --url https://pipemesh.io \
-  --registration-token <pmr_… token> --executor shell --description <name>
+npx pipemesh runners create build-farm           # add --pull-requests only for private repositories
 ```
 
-Tagged jobs never run on hosted compute; they wait for a runner on
-their queue. Images used on your runners need bash, git, curl and tar.
+It prints, once, the command each machine joins with
+(`gitlab-runner register … --registration-token pmr_…`); `npx pipemesh
+runners token build-farm` makes another. Jobs naming a runner never run
+on hosted compute; they wait for one of its machines, and their card
+says why. Pull requests' runs never reach a runner created without
+`--pull-requests`. Images used on your runners need bash, git, curl and
+tar.
 
 ### 7. Merge and watch
 
