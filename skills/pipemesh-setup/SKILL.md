@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.8.1;
+**Before Step 1, check this skill is current** (it is version 0.8.2;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.8.1
+npx pipemesh@latest version --skill=0.8.2
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -311,7 +311,10 @@ The rules that most often go wrong — they differ from other CI systems:
 12. **Secrets are named, not inlined.** List them per job under
    `secrets:` (non-secret settings under `config:`, `UPPER_SNAKE_CASE`);
    values are set in Pipemesh. Pull-request runs don't receive secrets
-   unless a secret allows it. Prefer OIDC to stored cloud keys:
+   unless a secret allows it. Prefer OIDC to stored cloud keys; the
+   OIDC provider and the roles jobs assume go in a bootstrap stack the
+   user deploys by hand, never in the pipeline that needs them to log in
+   (onboarding.md §4):
 
    ```yaml
    setup:

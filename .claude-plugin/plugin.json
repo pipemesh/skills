@@ -1,7 +1,7 @@
 {
   "name": "pipemesh",
   "description": "Configure Pipemesh for a repository: scan the existing CI/CD, write pipemesh.yaml, validate it, open a pull request, and enable the repository.",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "author": {
     "name": "Pipemesh"
   },

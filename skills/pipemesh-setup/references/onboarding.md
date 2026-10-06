@@ -25,8 +25,8 @@ Keep it short and concrete. Use this order:
 **TODOs** — every `# TODO(pipemesh)` left in the files, and why.
 
 **Before the first run** — the secrets/config names to create, the
-cloud trust to add, runners, GitHub App permissions (details in the
-"turn it on" steps below).
+bootstrap stack to deploy by hand (the cloud trust), runners, GitHub App
+permissions (details in the "turn it on" steps below).
 ```
 
 ## Pull request (step 7)
@@ -61,7 +61,7 @@ Preview of the board: <the link from npx pipemesh preview> (open until <date>)
 ## Before merging
 - [ ] Repository enabled in Pipemesh (it waits for this file on `main`)
 - [ ] Secrets created in Pipemesh: `…`
-- [ ] Cloud trust for the job identities (subjects from `npx pipemesh identity` once this is merged): `…`
+- [ ] Bootstrap stack deployed by hand, with the cloud trust for the job identities (subjects from `npx pipemesh identity` once this is merged): `<the command>`
 - [ ] <anything else this definition needs>
 
 The existing CI keeps running until we turn it off; nothing here changes it.
@@ -214,6 +214,36 @@ from `npx pipemesh identity`:
 When the old CI used GitHub's OIDC (`role-to-assume`), the roles can
 stay — add a statement trusting Pipemesh's issuer and subjects next to
 GitHub's, and remove GitHub's once the old workflow is retired.
+
+**Put the trust in a bootstrap stack the user deploys by hand.** The
+OIDC provider and the roles the jobs assume (their trust and their
+permissions) are what a deploy job needs to log in, so the pipeline
+can't create or change them: a deploy that adds a role would run as a
+role that must already exist, and a trust it breaks locks out the job
+that would fix it. Keep them in a small stack of their own, the way
+`cdk bootstrap` keeps what CDK deploys with, deployed from the user's
+machine with their own credentials, once and again when a job that
+needs access is added:
+
+- **AWS**: a CloudFormation or CDK stack (or a Terraform root module),
+  e.g. `infra/bootstrap/`, with the IAM OIDC provider for
+  `pipemesh.io/api/oidc` (once per account; skip it when one exists),
+  each role a job assumes, its trust (the subjects above) and its
+  permissions. Take the subjects as a parameter, so adding one is a
+  redeploy, not an edit.
+- **Google Cloud**: the workload identity pool and provider for the
+  issuer, and each service account's `roles/iam.workloadIdentityUser`
+  binding for its subjects.
+- **Azure**: a federated credential per subject on the app registration
+  or managed identity.
+
+Offer to write it, with the one command that deploys it (e.g.
+`aws cloudformation deploy --template-file infra/bootstrap/pipemesh.yaml --stack-name pipemesh-bootstrap --capabilities CAPABILITY_NAMED_IAM --parameter-overrides DeploySubject=…`),
+and put that command in the pull request's checklist. No job checks it
+out or runs it. Order: merge the definition, read the subjects with
+`npx pipemesh identity`, deploy the bootstrap stack, then let the
+deploy run (or re-run it). Everything else the application needs (its
+clusters, buckets, databases) stays in stacks the pipeline deploys.
 
 ### 5. If jobs run on GitHub Actions
 
