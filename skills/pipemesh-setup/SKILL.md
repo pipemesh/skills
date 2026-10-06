@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.8.2;
+**Before Step 1, check this skill is current** (it is version 0.9.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.8.2
+npx pipemesh@latest version --skill=0.9.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -238,20 +238,24 @@ The rules that most often go wrong — they differ from other CI systems:
    everything under it; globs cut finer). The job's workspace holds
    exactly that, plus what it consumes: a file the list leaves out is
    not there, and the job fails on it. Write it from the inventory's
-   *files it reads* column. A build may keep its default `true` (safe;
-   every commit is then new work for it) or narrow it to the
-   directories it builds plus the root files its tools read
-   (`package.json`, the lockfile, `tsconfig.json`, `.nvmrc`, wrapper
-   scripts) — narrow only with a complete list. A deploy lists its
-   deploy scripts and charts (`deploy/`) and gets the artifact through
-   `consumes:`. A task that only reads git history or the commit checks
-   out nothing (history stays complete, so `git log` and
-   `git merge-base` work).
+   *files it reads* column, **as coarse as it can be**: `true`, a few
+   whole directories, or the whole repository minus what the job
+   doesn't read, `["**", "!docs", "!**/*.md"]` (an entry starting with
+   `!` excludes; git reads the list: the most specific path decides, the
+   last entry breaks a tie). Never a long
+   list of loose root files: it goes stale when a file is added, and the
+   job fails on it. A build keeps `true` unless it plainly reads part of
+   the tree (one service of a monorepo: its directory, the shared
+   libraries, the root config). A deploy lists its deploy directory
+   (`deploy/`, `charts/app`) and gets the artifact through `consumes:`.
+   A task that only reads git history or the commit checks out nothing
+   (history stays complete, so `git log` and `git merge-base` work).
    The checkout is also the job's fingerprint: a `built`/`unchanged`
    job runs again only when a file it checks out, or something it
    consumes, changed. Files named by `${checksum:…}` in the cache key
-   and `publish:` contexts are added for you. An empty list and a list
-   holding only `"**"` are load errors (write `false` / `true`).
+   and `publish:` contexts are added for you. An empty list, a list
+   holding only `"**"`, and a list of exclusions alone are load errors
+   (write `false` / `true` / start with `"**"`).
 7. **Outputs are declared entries, handed only to who names them.** The
    producer declares the entry; each consumer names it and finds the
    files at the same path (and the path in `$PIPEMESH_BUILD_DIST`):
