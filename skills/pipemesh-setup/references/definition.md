@@ -244,7 +244,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `produces` | entries this job outputs (files, images, packages) |
 | `publish` | build + push an image from a directory; `key:` makes it an `oci` entry |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
-| `runner` | where it runs: a hosted size — `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26), `-xlarge` (16 / 52) — or the organization's own runner by name |
+| `runner` | where it runs: a hosted size — `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26), and the same sizes on x86-64 as `linux-amd64-small`, `-medium`, `-large` — or the organization's own runner by name. No `xlarge` |
 | `dockerd` | `true`: the job gets a Docker daemon (Testcontainers, `docker compose`, `docker build`); `publish:` implies it. Without it the `docker` CLI has no daemon |
 | `matrix` | load-time expansion |
 | `timeout_seconds` | integer; default 3600 on Pipemesh runners, and at most 3600 on hosted ones |

@@ -49,8 +49,9 @@ job.
 | --- | --- |
 | `jobs.<id>` | a job with a `job_type:` (decisions.md → *Choosing each job's job_type*); ids become lowercase `[a-z0-9_-]` (`deploy-staging` → `deploy_staging` or keep the hyphen) |
 | `needs:` | `needs:` — plus `consumes:` where an output is passed |
-| `runs-on: ubuntu-*` | nothing (the hosted `linux-arm64-small`); pick `image:` for the toolchain. Hosted runners are **arm64**: a tool downloaded for x86-64 needs its arm64 build. A job that needs more memory or cores: `runner: linux-arm64-medium` |
-| `runs-on: ubuntu-*-xl` / larger GitHub runners | `runner: linux-arm64-large` or `-xlarge` (4 GiB per vCPU nearly) |
+| `runs-on: ubuntu-*` | `runner: linux-amd64-small` (x86-64, like GitHub's), or nothing for the arm64 default (`linux-arm64-small`) when the job's tools have arm64 builds — prefer arm64 for new work, keep amd64 for what downloads x86-64 binaries or must ship amd64 natively. Pick `image:` for the toolchain. More memory or cores: the `-medium` size |
+| `runs-on: ubuntu-*-arm` | nothing (the arm64 default) |
+| `runs-on: ubuntu-*-xl` / larger GitHub runners | the `-large` size (8 vCPU / 26 GiB); there is no larger hosted size |
 | `runs-on:` self-hosted labels / `macos-*` / `windows-*` | `runner: <name>` — a runner the organization creates (`npx pipemesh runners create <name>`) and joins machines to — or run the job on Actions (`github_actions:`) |
 | a step running `docker`, Testcontainers or `docker compose` | `dockerd: true` on the job (`publish:` jobs get it already) |
 | `container: image` | `image:` |

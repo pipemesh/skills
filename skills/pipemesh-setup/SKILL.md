@@ -281,9 +281,10 @@ The rules that most often go wrong — they differ from other CI systems:
 9. **Images you deploy are built and pushed in the script**, then
    recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
    and deployed by digest. `publish:` (no `repo:`) is only for CI images
-   your own jobs run in via `image_from:`. Hosted runners are **arm64**:
-   what they build is arm64 unless cross-built — check the deploy
-   target's architecture and ask if it's amd64.
+   your own jobs run in via `image_from:`. Hosted runners are **arm64**
+   unless the job names a `linux-amd64-*` size: what a job builds is its
+   runner's architecture — check the deploy target's architecture and
+   ask if it's amd64.
 10. **Pull-request runs never save caches; they restore what the
    default-branch jobs saved with the same cache `paths:`.** Key on
    `${checksum:<lockfile>}`, keep paths inside the workspace, and give
