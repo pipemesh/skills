@@ -62,21 +62,24 @@ deploy_staging:
   production: false
   stage: staging
   consumes:
-    - build/dist                  # waits for build; dist/ appears at its own path
+    DIST: build/dist              # waits for build; dist/ appears at its own path
   checkout:
     - deploy                      # the workspace: deploy/ and dist/, nothing else
-  script: ./deploy/deploy.sh staging "$PIPEMESH_BUILD_DIST"
+  script: ./deploy/deploy.sh staging "$DIST"
 ```
 
-- `consumes:` names `<job>/<key>`. It is also an ordering edge (the job
-  waits for the producer) and a fingerprint input (a new digest makes
-  the consumer run; the same digest lets it skip).
+- `consumes:` is a map, variable name to entry `<job>/<key>`. Consuming
+  is also an ordering edge (the job waits for the producer) and a
+  fingerprint input (a new digest makes the consumer run; the same
+  digest lets it skip).
 - File entries are unpacked **at their original path** in the
-  workspace. Each consumed entry is also a variable:
-  `PIPEMESH_` + the path upper-cased, non-alphanumerics as `_`:
-  `build/dist` → `$PIPEMESH_BUILD_DIST` (the workspace-relative path
-  `dist`); `image/app` → `$PIPEMESH_IMAGE_APP` (`registry/repo@sha256:…`);
-  `build[region=eu]/dist` → `$PIPEMESH_BUILD_REGION_EU_DIST`.
+  workspace. The variable the map names holds the entry's value: for a
+  file entry its workspace-relative path (`DIST: build/dist` → `$DIST`
+  is `dist`), for an `oci` or `npm` entry `ref@digest` (`APP_IMAGE:
+  image/app` → `registry/repo@sha256:…`). A matrix cell's entry is
+  quoted: `BUNDLE: "build[region=eu]/dist"`. Names are `UPPER_SNAKE_CASE`,
+  never `PIPEMESH_…` or `CI_…` (Pipemesh's own), and not also set under
+  `variables:` or `secrets:`; the same entry cannot be named twice.
 - Paths through a body: `ci/build/dist` is the `dist` entry of job
   `build` inside the body that the `job_type: workflow` job `ci` runs;
   `../build/jar` inside such a body is the parent's `build/jar`.
@@ -98,7 +101,7 @@ deploy_production:
   needs:
     - deploy_staging              # promotion order
   consumes:
-    - build/dist                  # what it ships, by digest
+    DIST: build/dist              # what it ships, by digest
   checkout:
     - deploy                      # the only repository files it reads
 ```
@@ -182,10 +185,10 @@ deploy_staging:
   production: false
   stage: staging
   consumes:
-    - image/app                   # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
+    APP_IMAGE: image/app          # $APP_IMAGE = <repo>@sha256:…
   checkout:
     - charts/shop
-  script: helm upgrade --install shop charts/shop --set image="$PIPEMESH_IMAGE_APP" --wait
+  script: helm upgrade --install shop charts/shop --set image="$APP_IMAGE" --wait
 ```
 
 A `docker build` in the script sends its context from the workspace,

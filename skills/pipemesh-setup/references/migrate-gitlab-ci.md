@@ -210,7 +210,7 @@ pipeline:
       production: false
       stage: staging
       consumes:
-        - build/dist
+        DIST: build/dist
       checkout:
         - deploy.sh
       script: ./deploy.sh staging
@@ -221,7 +221,7 @@ pipeline:
       needs:
         - deploy_staging
       consumes:
-        - build/dist
+        DIST: build/dist
       checkout:
         - deploy.sh
       script: ./deploy.sh production

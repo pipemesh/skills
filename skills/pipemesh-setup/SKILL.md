@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.10.0;
+**Before Step 1, check this skill is current** (it is version 0.11.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.10.0
+npx pipemesh@latest version --skill=0.11.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -258,7 +258,7 @@ The rules that most often go wrong — they differ from other CI systems:
    (write `false` / `true` / start with `"**"`).
 7. **Outputs are declared entries, handed only to who names them.** The
    producer declares the entry; each consumer names it and finds the
-   files at the same path (and the path in `$PIPEMESH_BUILD_DIST`):
+   files at the same path (and that path in the variable it names, `$DIST`):
 
    ```yaml
    build:
@@ -272,8 +272,8 @@ The rules that most often go wrong — they differ from other CI systems:
      production: false
      stage: staging
      consumes:
-       - build/dist
-     script: ./deploy/deploy.sh staging dist
+       DIST: build/dist
+     script: ./deploy/deploy.sh staging "$DIST"
    ```
 
    `needs:` orders but passes nothing. Deploys consume what the build

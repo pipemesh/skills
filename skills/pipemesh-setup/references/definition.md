@@ -43,7 +43,7 @@ pipeline:                                         # your definition: a body
       production: false
       stage: staging
       consumes:
-        - build/compile/dist                      # …ships what the build produced
+        DIST: build/compile/dist                  # …ships what the build produced
       checkout:
         - deploy                                  # …with the scripts it runs
       script: ./deploy/run.sh staging
@@ -257,7 +257,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `variables` | job variables: a string, or `NAME: !settings` for the repository's Settings variable of that name (`UPPER_SNAKE_CASE`, one source per name); on `job_type: workflow`/`pipeline`, the child's variables |
 | `secrets` | names of repository secrets the job receives (it gets no others) |
 | `needs` | jobs to wait for (and inherit legacy `artifacts:` from) |
-| `consumes` | entries to receive: `<job>/<key>`; also an ordering edge and a fingerprint input |
+| `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
 | `produces` | entries this job outputs (files, images, packages) |
 | `publish` | build + push an image from a directory; `key:` makes it an `oci` entry |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
@@ -423,7 +423,7 @@ deploy_prod:
   needs:
     - smoke
   consumes:
-    - build/dist                           # fetched in the run with pipemesh/consume@v1
+    DIST: build/dist                       # fetched in the run with pipemesh/consume@v1
   github_actions:                          # or just: github_actions: deploy.yml
     workflow: deploy.yml
     inputs:
@@ -465,7 +465,7 @@ orders:                                  # hand the revision to a child pipeline
   variables:                             # the child's variables
     SERVICE: orders
   consumes:
-    - graph/orders                       # what decides the hand-over
+    FINGERPRINT: graph/orders            # what decides the hand-over
 ```
 
 - Both take `body:` (the child's body), `variables:`, `stage:`, `needs:`, `consumes:`, `skip:`,
@@ -549,7 +549,7 @@ deploy_production:
   production: true
   stage: production
   consumes:
-    - image/app                                     # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
+    APP_IMAGE: image/app                            # $APP_IMAGE = <repo>@sha256:…
   checkout:
     - charts/app                                    # what the component's script reads
   uses: ./.pipemesh/components/eks-deploy.yaml      # a type: component file, or a registry component: aws/role@1
@@ -574,7 +574,7 @@ job:
   image: ghcr.io/acme/deploy-tools@sha256:…   # helm + kubectl, and bash, git, curl, tar
   script: |
     helm upgrade app charts/app --kube-context ${{ params.cluster }} \
-      --set image="$PIPEMESH_IMAGE_APP" --set replicas=${{ params.replicas }}
+      --set image="$APP_IMAGE" --set replicas=${{ params.replicas }}
 ```
 
 - A component starts with `type: component` and `name: <name>`; the
