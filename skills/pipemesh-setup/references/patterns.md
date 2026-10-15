@@ -634,6 +634,9 @@ jobs, inline under a body's `jobs:`):
 build_ci:
   job_type: build                            # same ci/ content → same image, no rebuild
   stage: image
+  checkout:
+    - ci
+  script: echo "building the CI image"
   produces:
     ci_image:
       build: ci                              # Pipemesh builds and keeps it, no registry token

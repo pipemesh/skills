@@ -204,7 +204,7 @@ revision shipped.
 
 **2. A CI/toolchain image your own jobs run in**: let Pipemesh build and
 keep it. An `oci` entry with `build:` builds the directory after the
-script succeeds (a job may have no script at all), stores it in
+script succeeds (so the script can prepare it; a job still needs one), stores it in
 Pipemesh's registry tagged by the build context's fingerprint (an
 unchanged directory is never rebuilt), and later jobs run in it with
 `image_from:`:
@@ -213,9 +213,12 @@ unchanged directory is never rebuilt), and later jobs run in it with
 build_ci:
   job_type: build
   stage: image
+  checkout:
+    - ci                                 # runs only when ci/ changes (build: adds it anyway)
+  script: echo "building the CI image from ci/"
   produces:
     ci_image:
-      build: ci                          # added to the checkout; Dockerfile defaults to ci/Dockerfile
+      build: ci                          # Dockerfile defaults to ci/Dockerfile
                                          # long form: build: { context, dockerfile, args }
 test:
   job_type: build
