@@ -118,15 +118,15 @@ Three cases; pick by who pulls the image.
 by default and **amd64** when the job names a `linux-amd64-*` size.
 Every `image:` needs a variant for the job's architecture (the official
 language images have both), and what a job builds — `docker build` and
-`publish:` images, native modules `npm ci` compiles or downloads,
+images Pipemesh builds, native modules `npm ci` compiles or downloads,
 prebuilt output such as `vercel build`'s — is its runner's architecture
 unless the job asks for another platform. When the deploy target is
 amd64 (most x86 clusters, many PaaS runtimes), ask the user which way
 to go:
 
 - **Build on amd64**: `runner: linux-amd64-small` (or `-medium`) on the
-  job that builds it — native, no emulation; `publish:` there builds
-  amd64.
+  job that builds it — native, no emulation; an image Pipemesh builds
+  there (`build:`) is amd64.
 - **Cross-compile** where the toolchain can (Go with `GOARCH`, a JVM
   jar, a JS bundle): a `FROM --platform=$BUILDPLATFORM` build stage
   compiles for the target, no emulation needed.
@@ -140,7 +140,7 @@ to go:
   the image build in GitHub Actions (`github_actions:` on the build
   job).
 
-`publish:` builds its runner's architecture. Platforms that build
+An image Pipemesh builds (`build:`) is its runner's architecture. Platforms that build
 remotely (`flyctl deploy --remote-only`, `vercel deploy` without
 `--prebuilt`) are unaffected. A cache key whose files are native builds
 names the architecture when jobs of both share it
@@ -203,21 +203,23 @@ digest, never by tag: a rollback then redeploys exactly what that
 revision shipped.
 
 **2. A CI/toolchain image your own jobs run in**: let Pipemesh build and
-keep it. `publish:` without `repo:` (a `key:` is required) builds the
-directory after the script succeeds, stores it in Pipemesh's registry
-tagged by the build context's fingerprint (an unchanged directory is
-never rebuilt), and later jobs run in it with `image_from:`:
+keep it. An `oci` entry with `build:` builds the directory after the
+script succeeds (so the script can prepare it; a job still needs one), stores it in
+Pipemesh's registry tagged by the build context's fingerprint (an
+unchanged directory is never rebuilt), and later jobs run in it with
+`image_from:`:
 
 ```yaml
 build_ci:
   job_type: build
   stage: image
   checkout:
-    - ci                                 # publish: contexts are added to the checkout anyway
+    - ci                                 # runs only when ci/ changes (build: adds it anyway)
   script: echo "building the CI image from ci/"
-  publish:
-    - context: ci                        # Dockerfile defaults to ci/Dockerfile; args: → --build-arg
-      key: ci_image
+  produces:
+    ci_image:
+      build: ci                          # Dockerfile defaults to ci/Dockerfile
+                                         # long form: build: { context, dockerfile, args }
 test:
   job_type: build
   stage: test
@@ -234,10 +236,6 @@ the default branch's. Only `image_from` can pull these images.
 **3. A public image** (`node:22-bookworm`): just `image:`. Pulls are
 anonymous — private registry images can't be used in `image:`; build
 them as case 2 instead.
-
-Don't use `publish:` **with** `repo:` on pipemesh.io: `repo:` is a name
-inside the Pipemesh instance's own registry (a host like `ghcr.io/…`
-fails to load), which only self-hosted instances configure.
 
 npm packages follow case 1: publish in the script, then
 `pipemesh produce npm sdk --ref "@acme/sdk@$version" --digest "$(npm view @acme/sdk@$version dist.integrity)"`.

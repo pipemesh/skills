@@ -251,18 +251,17 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `github_actions` | run the job as a GitHub Actions workflow and wait for it: the file (`deploy.yml`), or a map of `workflow`, `ref`, `inputs`, `artifacts` |
 | `setup` | a list of steps, each `uses:` (and `with:`): script-only components prepended to `script` |
 | `body` / `workload` | `job_type: workflow` and `job_type: pipeline` only: the body to run (`!ref`, `!include`, inline; its `type:` matches the job type), or an existing workload's alias |
-| `image` | a **public** container image with bash, git, curl and tar (private images: build them with `publish:` + `image_from`), or `!var NAME`: the image a job variable holds (a `!settings` one pins it in Settings) |
+| `image` | a **public** container image with bash, git, curl and tar (private images: build them with an `oci` entry's `build:` + `image_from`), or `!var NAME`: the image a job variable holds (a `!settings` one pins it in Settings) |
 | `image_from` | run in an image another job built: `<job>/<oci key>` (exclusive with `image`) |
 | `services` | loads but is **ignored** by the runners — start services in the script (patterns.md §12) |
 | `variables` | job variables: a string, or `NAME: !settings` for the repository's Settings variable of that name (`UPPER_SNAKE_CASE`, one source per name); on `job_type: workflow`/`pipeline`, the child's variables |
 | `secrets` | names of repository secrets the job receives (it gets no others) |
 | `needs` | jobs to wait for (and inherit legacy `artifacts:` from) |
 | `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
-| `produces` | entries this job outputs (files, images, packages) |
-| `publish` | build + push an image from a directory; `key:` makes it an `oci` entry |
+| `produces` | entries this job outputs (files, images, packages); an `oci` entry with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
 | `runner` | where it runs: a hosted size — `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26), and the same sizes on x86-64 as `linux-amd64-small`, `-medium`, `-large` — or the organization's own runner by name. No `xlarge` |
-| `dockerd` | `true`: the job gets a Docker daemon (Testcontainers, `docker compose`, `docker build`); `publish:` implies it. Without it the `docker` CLI has no daemon |
+| `dockerd` | `true`: the job gets a Docker daemon (Testcontainers, `docker compose`, `docker build`); an `oci` entry with `build:` implies it. Without it the `docker` CLI has no daemon |
 | `matrix` | load-time expansion |
 | `timeout_seconds` | integer; default 3600 on Pipemesh runners, and at most 3600 on hosted ones |
 | `retry` | re-attempts a failed job in a workflow run |
@@ -372,7 +371,7 @@ checkout:                 # everything but these
   `true` checkout makes every commit new work for the job.
 - **Added for you** (to the workspace and the fingerprint): each file
   named by `${checksum:<file>}` in the job's cache key, and each
-  `publish:` context and Dockerfile (a context of `.` makes it `true`).
+  `build:` context and Dockerfile of a `produces:` entry (a context of `.` makes it `true`).
 - One spelling per meaning: an empty list and a list holding only
   `"**"` are load errors — write `false` / `true`.
 - A `github_actions:` job's checkout is read from its workflow file
@@ -408,7 +407,7 @@ revision. It loads, with a warning; give it its inputs or `skip: never`.
 A `build`, `deploy` or `task` names exactly one executor:
 
 - **`script:`** (with `setup:`, `image:`, `image_from:`, `services:`,
-  `runner:`, `dockerd:`, `cache:`, `publish:`, `secrets:`): Pipemesh's
+  `runner:`, `dockerd:`, `cache:`, `secrets:`): Pipemesh's
   hosted runners, or your own (`runner: <name>`).
 - **`uses:`**: a component, which brings the execution keys.
 - **`github_actions:`**: an Actions workflow, dispatched and waited for.
@@ -436,7 +435,7 @@ deploy_prod:
   job takes `consumes:` and `produces:` (an entry `dist: file` under
   `produces:` imports the run's Actions artifact named `dist`), and none of
   `script`, `setup`, `uses`, `image`, `image_from`, `services`, `runner`,
-  `dockerd`, `secrets`, `cache`, `publish`, `artifacts` — secrets stay in GitHub.
+  `dockerd`, `secrets`, `cache`, `artifacts`, nor an `oci` entry with `build:` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
   over every job of it and of each local reusable workflow it calls:
   `actions/checkout` with `sparse-checkout:` → those directories (plus
@@ -581,8 +580,8 @@ job:
   rest is `params:` and `job:`. (A param's `type:` is its value type,
   unrelated to the component's shape.)
 - Placement keys (`type`, `job_type`, `checkout`, `stage`, `needs`,
-  `skip`, `runner`, timeouts, `consumes`, `produces`, `secrets`, `cache`,
-  `publish`) stay on the job; execution keys (`script`, `setup`,
+  `skip`, `runner`, timeouts, `consumes`, `produces`, `secrets`, `cache`)
+  stay on the job; execution keys (`script`, `setup`,
   `image`, `services`) belong to the component — declaring one beside
   `uses:` is a load error. The job's `checkout:` must cover what the
   component's script reads.
@@ -602,7 +601,7 @@ Registry components (`uses: <stream>/<name>@<major>`, resolved from
 | `nx/fingerprint@1` | **image**, install, with_target, targets, extra, out | one fingerprint per Nx project (a `build` job; checkout `true`) |
 | `bazel/fingerprint@1` | image, targets, extra, out, bazel | one fingerprint per deployable Bazel package (a `build` job; checkout `true`) |
 | `bazel/remote-cache@1` | url, header, secret_var, results_url, bes_backend | Bazel remote cache (BuildBuddy default); PRs never upload (setup step) |
-| `docker/build-push@1` | **image**, tag, context, dockerfile, registry, username_var, password_var | docker login + build + push one tag (prefer `publish:`) |
+| `docker/build-push@1` | **image**, tag, context, dockerfile, registry, username_var, password_var | docker login + build + push one tag (for a CI image your jobs run in, prefer an `oci` entry with `build:`) |
 | `node/pnpm@1` | version | corepack-provisioned pnpm (setup step) |
 | `codecov/upload@1` | token_var | Codecov CLI upload (setup step) |
 | `slack/message@1` | **text**, webhook_var | post to a Slack incoming webhook (setup step) |

@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.11.0;
+**Before Step 1, check this skill is current** (it is version 0.12.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.11.0
+npx pipemesh@latest version --skill=0.12.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -253,7 +253,7 @@ The rules that most often go wrong — they differ from other CI systems:
    The checkout is also the job's fingerprint: a `built`/`unchanged`
    job runs again only when a file it checks out, or something it
    consumes, changed. Files named by `${checksum:…}` in the cache key
-   and `publish:` contexts are added for you. An empty list, a list
+   and the directories of images Pipemesh builds (`build:`) are added for you. An empty list, a list
    holding only `"**"`, and a list of exclusions alone are load errors
    (write `false` / `true` / start with `"**"`).
 7. **Outputs are declared entries, handed only to who names them.** The
@@ -296,8 +296,8 @@ The rules that most often go wrong — they differ from other CI systems:
    `consumes:` (the service's fingerprint) or `checkout:` lists changed.
 9. **Images you deploy are built and pushed in the script**, then
    recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
-   and deployed by digest. `publish:` (no `repo:`) is only for CI images
-   your own jobs run in via `image_from:`. Hosted runners are **arm64**
+   and deployed by digest. An `oci` entry with `build:` is only for CI
+   images your own jobs run in via `image_from:`. Hosted runners are **arm64**
    unless the job names a `linux-amd64-*` size: what a job builds is its
    runner's architecture — check the deploy target's architecture and
    ask if it's amd64.

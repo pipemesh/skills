@@ -247,8 +247,8 @@ pipeline:
 - The image is the build job's runner's architecture: **arm64** by
   default. If the cluster runs amd64 nodes, see artifacts-and-caching.md
   → Images (a `linux-amd64-*` runner builds it natively).
-- `publish:` is for CI images Pipemesh keeps (pattern 8), not for images
-  your cluster pulls.
+- An `oci` entry with `build:` is for CI images Pipemesh keeps (pattern 8),
+  not for images your cluster pulls.
 
 ## 3. A heavy CI suite as one node of the pipeline
 
@@ -635,11 +635,11 @@ build_ci:
   job_type: build                            # same ci/ content → same image, no rebuild
   stage: image
   checkout:
-    - ci                                     # the publish: context is added anyway
+    - ci
   script: echo "building the CI image"
-  publish:
-    - context: ci                            # no repo: Pipemesh keeps it, no registry token
-      key: ci_image
+  produces:
+    ci_image:
+      build: ci                              # Pipemesh builds and keeps it, no registry token
 graph:
   job_type: build
   stage: graph
