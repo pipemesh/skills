@@ -53,7 +53,7 @@ job.
 | `runs-on: ubuntu-*-arm` | nothing (the arm64 default) |
 | `runs-on: ubuntu-*-xl` / larger GitHub runners | the `-large` size (8 vCPU / 26 GiB); there is no larger hosted size |
 | `runs-on:` self-hosted labels / `macos-*` / `windows-*` | `runner: <name>` — a runner the organization creates (`npx pipemesh runners create <name>`) and joins machines to — or run the job on Actions (`github_actions:`) |
-| a step running `docker`, Testcontainers or `docker compose` | `dockerd: true` on the job (`publish:` jobs get it already) |
+| a step running `docker`, Testcontainers or `docker compose` | `dockerd: true` on the job (jobs with an `oci` entry Pipemesh builds, `build:`, get it already) |
 | `container: image` | `image:` |
 | `services:` | not supported (ignored): start it in the script — patterns.md §12 |
 | `steps: - run:` | lines of `script:` (one shell, `set -e`; `working-directory:` → `cd`; `shell: python` → `python - <<'EOF'`) |
