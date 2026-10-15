@@ -65,7 +65,7 @@ pipeline:
       stage: staging
       image: node:22-bookworm
       consumes:
-        - build/dist                    # waits for build; dist/ lands at its own path
+        DIST: build/dist                # waits for build; dist/ lands at its own path
       checkout:
         - deploy                        # the only repository files it reads
       secrets:
@@ -89,7 +89,7 @@ pipeline:
       needs:
         - smoke                         # production only takes what staging took and passed
       consumes:
-        - build/dist
+        DIST: build/dist
       checkout:
         - deploy
       secrets:
@@ -224,7 +224,7 @@ pipeline:
       production: false
       stage: staging
       consumes:
-        - image/app                              # $PIPEMESH_IMAGE_APP = <repo>@sha256:…
+        APP_IMAGE: image/app                     # $APP_IMAGE = <repo>@sha256:…
       checkout:
         - charts/shop-api
         - scripts/deploy.sh
@@ -233,7 +233,7 @@ pipeline:
           with:
             arn: arn:aws:iam::123456789012:role/shop-deploy-staging
             region: eu-west-1
-      script: ./scripts/deploy.sh staging "$PIPEMESH_IMAGE_APP"
+      script: ./scripts/deploy.sh staging "$APP_IMAGE"
 ```
 
 - Deploy by digest, never by tag: a rebuild with the same digest deploys
@@ -274,7 +274,7 @@ pipeline:
       production: false
       stage: staging
       consumes:
-        - ci/build/dist                  # <workflow job>/<job inside its body>/<key>
+        DIST: ci/build/dist              # <workflow job>/<job inside its body>/<key>
       checkout:
         - deploy
       script: ./deploy/deploy.sh staging
@@ -354,7 +354,7 @@ jobs:
     stage: publish
     image: python:3.12-bookworm
     consumes:
-      - build/wheel                     # dist/ arrives; nothing else is checked out
+      WHEEL: build/wheel                # dist/ arrives; nothing else is checked out
     secrets:
       - PYPI_TOKEN
     script: |
@@ -413,7 +413,7 @@ pipeline:
       job_type: build                        # hosted compute reading what Actions built
       stage: build
       consumes:
-        - build/dist
+        DIST: build/dist
       checkout: false
       script: test -f dist/version.txt
     deploy_staging:
@@ -519,7 +519,7 @@ dispatch:
       job_type: pipeline                       # checks out nothing: its entry is its only input
       stage: dispatch
       consumes:
-        - graph/orders                         # hands the revision over only when this changed
+        FINGERPRINT: graph/orders              # hands the revision over only when this changed
       body: !ref service
       variables:
         SERVICE: orders
@@ -527,7 +527,7 @@ dispatch:
       job_type: pipeline
       stage: dispatch
       consumes:
-        - graph/payments
+        FINGERPRINT: graph/payments
       body: !ref service
       variables:
         SERVICE: payments
@@ -570,7 +570,7 @@ jobs:
     production: false
     stage: staging
     consumes:
-      - build/bundle
+      BUNDLE: build/bundle
     checkout:
       - deploy
     script: deploy/deploy.sh $SERVICE staging
@@ -581,7 +581,7 @@ jobs:
     needs:
       - deploy_staging
     consumes:
-      - build/bundle
+      BUNDLE: build/bundle
     checkout:
       - deploy
     script: deploy/deploy.sh $SERVICE production
@@ -666,7 +666,7 @@ deploy:
   needs:
     - regional_test[region=${{ matrix.region }}]     # each region ships what its lane tested
   consumes:
-    - bundle/dist
+    DIST: bundle/dist
   checkout:
     - deploy.sh
   script: ./deploy.sh ${{ matrix.region }}
@@ -733,8 +733,8 @@ pipeline:
         - settings.gradle.kts
         - build.gradle.kts
       consumes:
-        - orders_client/jar              # $PIPEMESH_ORDERS_CLIENT_JAR is the jar's path
-      script: ./gradlew build -PordersClient="$PIPEMESH_ORDERS_CLIENT_JAR"
+        ORDERS_CLIENT_JAR: orders_client/jar   # $ORDERS_CLIENT_JAR is the jar's path
+      script: ./gradlew build -PordersClient="$ORDERS_CLIENT_JAR"
       produces:
         jar: build/libs/billing.jar
     deploy_billing_staging:
@@ -742,8 +742,8 @@ pipeline:
       production: false
       stage: staging
       consumes:
-        - billing/jar
-      script: java -jar "$PIPEMESH_BILLING_JAR" --deploy staging
+        BILLING_JAR: billing/jar
+      script: java -jar "$BILLING_JAR" --deploy staging
 ```
 
 Every declared repository must be added to the same Pipemesh
@@ -759,7 +759,7 @@ sign_app:
   tags:
     - macos                     # the first tag is the queue; runs only on runners registered to it
   consumes:
-    - build/app
+    APP: build/app
   checkout:
     - scripts/sign-and-notarize.sh
   secrets:

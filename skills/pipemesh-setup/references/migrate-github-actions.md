@@ -64,7 +64,7 @@ job.
 | `timeout-minutes: 30` | `timeout_seconds: 1800` (default 3600) |
 | `concurrency:` | not needed: one revision at a time per pipeline job, newer ones supersede |
 | `environment: production` | `job_type: deploy` with `production: true` in the pipeline (a staging environment: `production: false`); approval rules → onboarding.md → Holding production. A PR preview environment is a `job_type: task` in the PR workflow |
-| `outputs:` / `$GITHUB_OUTPUT` | a file entry (`meta: out/meta.env` under `produces:`, consumer `source "$PIPEMESH_BUILD_META"`), or an `oci` entry for an image ref |
+| `outputs:` / `$GITHUB_OUTPUT` | a file entry (`meta: out/meta.env` under `produces:`; the consumer names it `META: build/meta` and runs `source "$META"`), or an `oci` entry for an image ref |
 | `permissions: id-token: write` | not needed: every Pipemesh job can request identity tokens |
 | reusable workflows (`uses: ./.github/workflows/x.yml`) | a `type: workflow` body in `.pipemesh/` run by a `job_type: workflow` job or reached with `!ref`/`!include`, or a component for parameterized jobs |
 | composite actions in the repo | a `type: component` in `.pipemesh/components/` (`setup:` for script fragments) |
