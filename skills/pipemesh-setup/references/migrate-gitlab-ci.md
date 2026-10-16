@@ -90,7 +90,8 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `release:` keyword | a script step calling your release tooling (e.g. `gh release create`) |
 | `pages:` | a `job_type: deploy` job in the pipeline, `production: true` |
 | `coverage:` | no equivalent |
-| `id_tokens:` | `$PIPEMESH_ID_TOKEN_REQUEST_URL` + `$PIPEMESH_ID_TOKEN_REQUEST_TOKEN`, or `aws/role@1` |
+| `id_tokens:` | the same: `id_tokens: { VAULT_ID_TOKEN: { aud: https://vault.example.com } }` (`aud` may be a list). The token carries GitLab's claims (`project_path`, `namespace_path`, `ref_type`, `ref_protected`, `pipeline_source`, `runner_id`, `runner_environment`) beside Pipemesh's, so the receiving side (a Vault role, a cloud trust) changes its issuer to `https://<instance>/api/oidc` and keeps its claim bindings. `aws/role@1` for AWS |
+| `CI_JOB_TOKEN` passed to another service (Vault, an admission check, an internal API) | an `id_tokens:` token for that service's audience: nothing outside Pipemesh can check `CI_JOB_TOKEN`. A service that only calls `GET /api/v4/job` with it keeps working, against the Pipemesh instance's URL |
 
 ## Variables
 
@@ -100,11 +101,16 @@ Set: `CI_COMMIT_SHA`, `CI_COMMIT_SHORT_SHA`, `CI_COMMIT_REF_NAME`,
 pipeline revisions), `CI_MERGE_REQUEST_IID` and
 `CI_MERGE_REQUEST_TARGET_BRANCH_NAME` (PRs), `CI_JOB_NAME`. **Not
 set:** `CI_COMMIT_BRANCH`, `CI_DEFAULT_BRANCH`, `CI_PIPELINE_ID`,
-`CI_JOB_ID`, `CI_REGISTRY*`, `CI_JOB_TOKEN`, `CI_PROJECT_*` (use
+`CI_JOB_ID`, `CI_REGISTRY*`, `CI_PROJECT_*` (use
 `$PIPEMESH_WORKSPACE` or `$PWD` for the checkout). Scripts that branch
 on those need rewriting — usually the condition disappears, because
 the job now lives only in the workload where it applies. Full list:
 `artifacts-and-caching.md` → Runtime variables.
+
+`CI_JOB_TOKEN` is Pipemesh's job token, not GitLab's: it authenticates
+the runner and the job's calls to Pipemesh, answers `GET /api/v4/job`
+(GitLab's shape: the job, its pipeline and `project.path_with_namespace`)
+and dies with the run. No other GitLab API call takes it.
 
 ## Example
 
