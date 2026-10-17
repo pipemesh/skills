@@ -73,11 +73,16 @@ Give the user the steps that apply, with this repository's real names.
 
 ### 1. Sign in and connect the repository
 
+On a self-hosted instance, read its URL for https://pipemesh.io
+everywhere below (sign-in, boards, the issuer `<url>/api/oidc`), and
+point the CLI at it first (`npx pipemesh login --api=<url>`; see "Which
+Pipemesh" in SKILL.md).
+
 From the terminal (the agent can run these; the person approves in the
 browser):
 
 ```bash
-npx pipemesh login      # shows a code and opens a page; approve it signed in with GitHub
+npx pipemesh login      # shows a code and opens a page; approve it signed in with GitHub or GitLab
 npx pipemesh repos      # is this repository listed? then skip connect
 npx pipemesh connect    # installs the Pipemesh GitHub App, waits for its repositories
 ```

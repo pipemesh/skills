@@ -31,17 +31,37 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.13.0;
+**Before Step 1, check this skill is current** (it is version 0.14.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.13.0
+npx pipemesh@latest version --skill=0.14.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
 update line it prints, and ask whether to update first or go on with
 this one. Pipemesh's grammar moves; an old skill writes what an old
 Pipemesh accepted. If the command can't reach Pipemesh, go on.
+
+**Which Pipemesh.** Every `npx pipemesh` command talks to
+https://pipemesh.io unless something names another instance, such as
+one the user's company runs. If the user mentions their own instance,
+or the repository lives on a self-managed GitLab, ask for its URL and
+point the CLI at it once (pipemesh 0.10.0 or newer):
+
+```bash
+npx pipemesh login --api=https://pipemesh.acme.internal   # signs in and makes it the default
+npx pipemesh instance https://pipemesh.acme.internal      # instead, where sign-in is off
+npx pipemesh instance                                    # which one commands use, and why
+```
+
+Behind a TLS-inspecting proxy (Zscaler and the like), or with an
+instance whose certificate comes from the company's own CA, Node needs
+that CA: `export NODE_EXTRA_CA_CERTS=/path/to/ca-bundle.pem` before
+any `npx pipemesh` command; the CLI says so when it meets a certificate
+it doesn't trust. Below, "Pipemesh" and every pipemesh.io URL (sign-in,
+boards, the OIDC issuer `<url>/api/oidc`, schemas `<url>/api/meta/…`)
+mean that instance.
 
 | File | Read it when |
 | --- | --- |
@@ -85,9 +105,11 @@ from names.
   without `type:`) no longer loads: run `npx pipemesh check` on it
   first (step 5); each error names the replacement (definition.md →
   Removed keys).
-- Pipemesh connects to **GitHub** today. If the remote is GitLab,
-  Bitbucket or self-hosted, say so early: you can still write the
-  definition, but the repository can't be enabled until support lands.
+- Pipemesh connects to **GitHub** and **GitLab**: gitlab.com groups on
+  Premium or Ultimate (they need group access tokens), and on a
+  self-hosted Pipemesh the self-managed GitLab it is set up with. If the
+  remote is Bitbucket or another host, say so early: you can still write
+  the definition, but the repository can't be enabled there.
 
 ## Step 2 — Inventory what the CI does
 
@@ -380,7 +402,8 @@ includes, its local components, the GitHub Actions workflows its jobs
 run — to Pipemesh, which loads them with the loader the repository's
 pipeline will meet, and stores nothing. It lists the files before it
 sends them (`npx pipemesh check --dry-run` lists them and sends
-nothing); tell the user that the check sends them to pipemesh.io.
+nothing); tell the user that the check sends them to Pipemesh (the
+instance `npx pipemesh instance` names, pipemesh.io unless set).
 
 It prints the load error, if any, then warnings, then every job's
 effective `job_type`, checkout and skip policy, and exits 1 on an
