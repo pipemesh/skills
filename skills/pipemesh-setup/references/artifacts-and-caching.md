@@ -367,7 +367,8 @@ Every job has: `CI_COMMIT_SHA`, `CI_COMMIT_SHORT_SHA` (8 chars),
 it if a child process needs it); it holds the job's checkout and what
 it consumes, nothing else. On pipemesh.io every job also has
 `PIPEMESH_ID_TOKEN_REQUEST_URL` and `PIPEMESH_ID_TOKEN_REQUEST_TOKEN`
-for requesting OIDC identity tokens (what `aws/role@1` uses).
+for requesting OIDC identity tokens (what `aws/role@1` uses), and each
+token its `id_tokens:` declares, under its own name.
 
 By trigger:
 

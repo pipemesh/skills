@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.12.0;
+**Before Step 1, check this skill is current** (it is version 0.13.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.12.0
+npx pipemesh@latest version --skill=0.13.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the

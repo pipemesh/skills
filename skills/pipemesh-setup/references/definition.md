@@ -256,6 +256,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `services` | loads but is **ignored** by the runners — start services in the script (patterns.md §12) |
 | `variables` | job variables: a string, or `NAME: !settings` for the repository's Settings variable of that name (`UPPER_SNAKE_CASE`, one source per name); on `job_type: workflow`/`pipeline`, the child's variables |
 | `secrets` | names of repository secrets the job receives (it gets no others) |
+| `id_tokens` | OIDC tokens the job gets as masked variables, as GitLab CI declares them: a map `NAME: { aud: <audience> }` (`aud` may be a list). Minted when the job starts; `UPPER_SNAKE_CASE`, never `CI_` or `PIPEMESH_`, one source per name, at most 10 |
 | `needs` | jobs to wait for (and inherit legacy `artifacts:` from) |
 | `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
 | `produces` | entries this job outputs (files, images, packages); an `oci` entry with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps |
@@ -407,7 +408,7 @@ revision. It loads, with a warning; give it its inputs or `skip: never`.
 A `build`, `deploy` or `task` names exactly one executor:
 
 - **`script:`** (with `setup:`, `image:`, `image_from:`, `services:`,
-  `runner:`, `dockerd:`, `cache:`, `secrets:`): Pipemesh's
+  `runner:`, `dockerd:`, `cache:`, `secrets:`, `id_tokens:`): Pipemesh's
   hosted runners, or your own (`runner: <name>`).
 - **`uses:`**: a component, which brings the execution keys.
 - **`github_actions:`**: an Actions workflow, dispatched and waited for.
@@ -435,7 +436,7 @@ deploy_prod:
   job takes `consumes:` and `produces:` (an entry `dist: file` under
   `produces:` imports the run's Actions artifact named `dist`), and none of
   `script`, `setup`, `uses`, `image`, `image_from`, `services`, `runner`,
-  `dockerd`, `secrets`, `cache`, `artifacts`, nor an `oci` entry with `build:` — secrets stay in GitHub.
+  `dockerd`, `secrets`, `id_tokens`, `cache`, `artifacts`, nor an `oci` entry with `build:` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
   over every job of it and of each local reusable workflow it calls:
   `actions/checkout` with `sparse-checkout:` → those directories (plus
