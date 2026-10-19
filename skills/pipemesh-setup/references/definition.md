@@ -257,7 +257,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `variables` | job variables: a string, or `NAME: !settings` for the repository's Settings variable of that name (`UPPER_SNAKE_CASE`, one source per name); on `job_type: workflow`/`pipeline`, the child's variables |
 | `secrets` | names of repository secrets the job receives (it gets no others) |
 | `id_tokens` | OIDC tokens the job gets as masked variables, as GitLab CI declares them: a map `NAME: { aud: <audience> }` (`aud` may be a list). Minted when the job starts; `UPPER_SNAKE_CASE`, never `CI_` or `PIPEMESH_`, one source per name, at most 10 |
-| `needs` | jobs to wait for (and inherit legacy `artifacts:` from) |
+| `needs` | jobs to wait for; no files flow along it (a job reads what it `consumes:`) |
 | `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
 | `produces` | entries this job outputs (files, images, packages); an `oci` entry with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
@@ -377,9 +377,9 @@ checkout:                 # everything but these
   `"**"` are load errors — write `false` / `true`.
 - A `github_actions:` job's checkout is read from its workflow file
   (see Executors); `checkout:` on the job overrides that.
-- `job_type: workflow` takes no `checkout:` (its jobs say what they
-  read); on `job_type: pipeline` it checks nothing out and only decides
-  when the revision is handed over.
+- `job_type: workflow` and `job_type: pipeline` take no `checkout:`:
+  their jobs say what they read. A pipeline job narrows what it watches
+  with `fingerprint:` (below).
 
 ## skip: when a job runs
 
@@ -464,28 +464,37 @@ orders:                                  # hand the revision to a child pipeline
   body: !ref service                     # a type: pipeline body
   variables:                             # the child's variables
     SERVICE: orders
-  consumes:
-    FINGERPRINT: graph/orders            # what decides the hand-over
+  fingerprint:                           # optional: narrow what decides the hand-over
+    artifacts: [graph/orders]            # instead of the artifacts the body reaches with ../
+    checkout: false                      # instead of the body's checkouts (false or a list)
 ```
 
-- Both take `body:` (the child's body), `variables:`, `stage:`, `needs:`, `consumes:`, `skip:`,
+- Both take `body:` (the child's body), `variables:`, `stage:`, `needs:`, `skip:`,
   `timeout_seconds:`, `allow_failure:`, `matrix:` and `was:` — none of
-  the executor keys, and no `produces:`: consumers name the body's
-  entries by path (`ci/build/dist`).
-- **`job_type: workflow`** combines its jobs' inputs (the union of their
-  checkouts, the config and secrets they read, what they consume from
-  up here) and takes their skip: `built` when every job is a build, so
-  a workflow of builds reuses as a whole, entries included; `never` as
-  soon as one job runs every time. `skip: never` is its only override;
-  `checkout:` on it is a load error. A body that works in another
-  repository runs every time. Inside a
-  workflow run, a nested `job_type: workflow` job runs every time.
-- **`job_type: pipeline`** passes the revision on only when its declared
-  inputs changed: the graph job's entry it consumes, or the service's
-  files listed in `checkout:` (which checks nothing out). Default:
-  nothing — so declare one. `skip:` is `unchanged` (default) or `never`.
-  It settles as *Dispatched*; the child promotes the revision on its
-  own board.
+  the executor keys, no `consumes:` or `checkout:` (the body's jobs say
+  what they read), and no `produces:`: consumers name the body's
+  artifacts by path (`ci/build/dist`).
+- **Both read what their body's jobs read**: the union of their
+  checkouts, the Settings variables and secrets they read, the artifacts
+  they reach with `../`, and the body's own text.
+- **`job_type: workflow`** takes their skip: `built` when every job is a
+  build, so a workflow of builds reuses as a whole, artifacts included;
+  `never` as soon as one job runs every time. `skip: never` is its only
+  override. A body that works in another repository runs every time.
+  Inside a workflow run, a nested `job_type: workflow` job runs every
+  time.
+- **`job_type: pipeline`** hands the revision over only when something
+  its body reads changed (`skip: unchanged`, or `never`). Another
+  repository's files count at the version the revision pinned. It
+  settles as *Dispatched*; the child promotes the revision on its own
+  board.
+- **`fingerprint:`** (pipeline jobs only) narrows what it watches: a
+  shared body that picks its service by a variable reads every
+  service's files, so each job watches its own. `artifacts:` lists
+  produced artifacts (`<job>/<key>`), which the job also waits for;
+  `checkout:` is `false` or a list. Variables, secrets and the body's
+  text always count. A workflow job can't narrow: a match reuses its
+  run.
 - Inside a body, a consume of `../build/jar` names the parent's `build`
   job's `jar` entry (the `job_type: workflow`/`pipeline` job consumes it
   too).

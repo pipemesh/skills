@@ -516,18 +516,20 @@ dispatch:
         orders: fingerprints/orders
         payments: fingerprints/payments
     orders:
-      job_type: pipeline                       # checks out nothing: its entry is its only input
+      job_type: pipeline                       # the body is shared: watch only this service
       stage: dispatch
-      consumes:
-        FINGERPRINT: graph/orders              # hands the revision over only when this changed
+      fingerprint:
+        artifacts: [graph/orders]              # hands the revision over only when this changed
+        checkout: false
       body: !ref service
       variables:
         SERVICE: orders
     payments:
       job_type: pipeline
       stage: dispatch
-      consumes:
-        FINGERPRINT: graph/payments
+      fingerprint:
+        artifacts: [graph/payments]
+        checkout: false
       body: !ref service
       variables:
         SERVICE: payments
