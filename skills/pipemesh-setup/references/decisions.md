@@ -123,17 +123,18 @@ the assumption at the top of the summary.
   Turborepo, Bazel): a dispatch pipeline. A `graph` job (a `build`
   that checks out the whole tree) uses the build tool's fingerprint
   component (`nx/fingerprint@1`, `turbo/fingerprint@1`,
-  `bazel/fingerprint@1`) and produces one entry per service; one
-  `job_type: pipeline` job per service consumes its entry and runs a
-  shared `type: pipeline` service body, with `SERVICE: <name>` under its
-  `variables:`. It checks out nothing, so it hands the revision over
-  only when that entry changed.
-  See `patterns.md`.
+  `bazel/fingerprint@1`) and produces one artifact per service; one
+  `job_type: pipeline` job per service runs a shared `type: pipeline`
+  service body, with `SERVICE: <name>` under its `variables:`, and
+  watches only its service's artifact (`fingerprint: { artifacts:
+  [graph/<name>], checkout: false }`), so it hands the revision over
+  only when that artifact changed. See `patterns.md`.
 - **Several services, no build graph** (plain directories): the same
-  dispatch shape without the graph job — each `job_type: pipeline` job
-  lists the service's directories (and shared libraries) in `checkout:`,
-  which checks nothing out and only decides when the revision is handed
-  over.
+  dispatch shape without the graph job. A pipeline job reads what its
+  body reads; a body shared by every service reads every service's
+  files, so each job narrows to its own: `fingerprint: { checkout:
+  [services/<name>, libs/shared] }`. A body per service needs no
+  narrowing.
 - **The service is spread over several repositories** (client library
   in one, consumer in another): one pipeline declaring `repos:`; jobs
   pick their repository with `repo:`. Every declared repository must be
@@ -153,7 +154,7 @@ job's commands do, not from its name:
 | ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | `false` | `unchanged` | **pipelines only** |
 | anything that must run on every revision: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` (no `job_type:` means this) | `false` | `never` | pipelines, workflows |
 | runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows |
-| hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | `false` (it checks nothing out; a list only decides when to hand over) | `unchanged` | **pipelines only** |
+| hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | its body's jobs' combined; `fingerprint:` narrows it | `unchanged` | **pipelines only** |
 
 What the skip policies mean: `built` reuses the outputs of any earlier
 successful run with the same fingerprint (*reused*); `unchanged` skips

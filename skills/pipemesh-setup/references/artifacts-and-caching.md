@@ -12,7 +12,7 @@ Plus **remote build caches** (Nx Cloud, Turborepo, BuildBuddy), which
 live outside Pipemesh and are configured per tool.
 
 Contents: entries · consuming · images · reuse · cache · remote build
-caches · runtime variables · legacy artifacts
+caches · runtime variables
 
 ## Entries: produces
 
@@ -398,10 +398,3 @@ the tag); `github.base_ref` → `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME`;
 `$CI_PIPELINE_SOURCE` (values above); `secrets.X` → `$X` with `X` in
 `secrets:`; `vars.X` → `$X` with `X: !settings` under `variables:`; `matrix.x` →
 `${{ matrix.x }}` (load time) or `$x`.
-
-## Legacy artifacts
-
-`artifacts:` (with `paths:` and `expire:`) still loads; its files flow
-along `needs:` edges transitively. It can't be combined with
-`produces:` on one job, and it is on its way out — write `produces:` /
-`consumes:` in new definitions.

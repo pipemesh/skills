@@ -317,8 +317,9 @@ The rules that most often go wrong — they differ from other CI systems:
    enforce it. A suite that runs as one node is `job_type: workflow`
    with `body:` (a `type: workflow` body); one pipeline per service is
    `job_type: pipeline` with `body:` (a `type: pipeline` body) and
-   `variables:`, handing the revision over only when what it
-   `consumes:` (the service's fingerprint) or `checkout:` lists changed.
+   `variables:`. It reads what its body reads; with a body shared by
+   every service, `fingerprint:` narrows it to the service's own
+   fingerprint artifact or directories.
 9. **Images you deploy are built and pushed in the script**, then
    recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
    and deployed by digest. An `oci` entry with `build:` is only for CI
