@@ -109,7 +109,8 @@ decides what they can do (admin/maintain operate pipelines, write can
 start manual workflows). The CLI's token acts as the person who
 approved it, with the same permissions, for 90 days
 (`npx pipemesh login --read-only` gets one that never changes
-anything).
+anything). The CLI keeps it in the system's keychain and uses it for
+every command, `npx pipemesh api <path>` included: never read it out.
 3. The App is read-mostly: it reads contents, writes check runs, and —
    only for jobs that run on GitHub Actions (`github_actions:`) —
    starts and cancels Actions runs. It can never push code.
@@ -292,7 +293,9 @@ tar.
   board is at `https://pipemesh.io/github.com/<org>/<repo>` (the
   pipeline at `…/-/pipeline`); from the terminal,
   `npx pipemesh watch --sha=<merge commit>` follows it until it settles
-  and `npx pipemesh logs <job>` shows a job's log. If the definition doesn't load, the
+  and `npx pipemesh logs <job>` shows a job's log (a workflow run's:
+  `npx pipemesh logs <workflow> --run=<n> [--job=<job>]`, every attempt;
+  `npx pipemesh runs <workflow>` lists run numbers). If the definition doesn't load, the
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
   with; later revisions skip what didn't change.

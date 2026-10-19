@@ -500,14 +500,23 @@ Once the repository is enabled, answer questions about it with the CLI
 | What would my edit change? | edit, `npx pipemesh check`, then `npx pipemesh preview` (`--watch` while iterating) — give the user the link before committing |
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
 | Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
-| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs) |
+| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers |
 | What do I put in a cloud trust? | `npx pipemesh identity` — the issuer and each job's subject (never compose one) |
+| Anything no command answers | `npx pipemesh api <path>` (`api POST <path> --data='{…}'` to change something: ask first) — the CLI makes the call signed in as the user and prints the answer |
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
 | Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, waiting for approval, failed, rolled back, or not yet; exit 0 when every one has it |
 
 "Production" is the deploys that say `production: true`. A commit counts as deployed
 once a production deploy ran a revision that contains it: a push of
 several commits makes one revision, at its head.
+
+**Never read, print or copy the CLI's token.** It is in the system's
+keychain (or `~/.config/pipemesh/credentials`), not in `config.json`,
+and every command above, `pipemesh api` included, uses it for you. Don't
+open those files, don't call the API with curl, and don't ask the user
+for a token or for `PIPEMESH_TOKEN`; if a call needs signing in, ask the
+user to run `npx pipemesh login`. The CLI shows only a token's last 4
+characters (`pmk_…a1b2`).
 
 Acting on it changes something, so ask the user first, every time
 (the server refuses what they may not do, and says why):
