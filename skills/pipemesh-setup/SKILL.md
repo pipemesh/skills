@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.14.0;
+**Before Step 1, check this skill is current** (it is version 0.15.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.14.0
+npx pipemesh@latest version --skill=0.15.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -107,7 +107,10 @@ from names.
   Removed keys).
 - Pipemesh connects to **GitHub** and **GitLab**: gitlab.com groups on
   Premium or Ultimate (they need group access tokens), and on a
-  self-hosted Pipemesh the self-managed GitLab it is set up with. If the
+  self-hosted Pipemesh any self-managed GitLab its admin added, beside
+  gitlab.com (each has its own sign-in button, "Continue with
+  git.acme.io"). An account on one GitLab is not the same account on
+  another: sign in with the GitLab the repository lives on. If the
   remote is Bitbucket or another host, say so early: you can still write
   the definition, but the repository can't be enabled there.
 

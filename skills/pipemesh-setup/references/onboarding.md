@@ -84,8 +84,15 @@ browser):
 ```bash
 npx pipemesh login      # shows a code and opens a page; approve it signed in with GitHub or GitLab
 npx pipemesh repos      # is this repository listed? then skip connect
-npx pipemesh connect    # installs the Pipemesh GitHub App, waits for its repositories
+npx pipemesh connect    # GitHub: installs the Pipemesh GitHub App; GitLab: opens the page to paste a group token; waits for its repositories
 ```
+
+On GitLab, sign in with the GitLab the repository lives on: an instance
+may talk to gitlab.com and its own GitLabs side by side, and an account
+on one is not an account on another. Connecting a group takes a group
+access token (`api` scope, Maintainer role) pasted by an Owner of the
+group; where the instance has several GitLabs, the connect page asks
+which one the group is on.
 
 Or in the browser:
 

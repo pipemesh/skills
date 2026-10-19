@@ -90,7 +90,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `release:` keyword | a script step calling your release tooling (e.g. `gh release create`) |
 | `pages:` | a `job_type: deploy` job in the pipeline, `production: true` |
 | `coverage:` | no equivalent |
-| `id_tokens:` | the same: `id_tokens: { VAULT_ID_TOKEN: { aud: https://vault.example.com } }` (`aud` may be a list). The token carries GitLab's claims (`project_path`, `namespace_path`, `ref_type`, `ref_protected`, `pipeline_source`, `runner_id`, `runner_environment`) beside Pipemesh's, so the receiving side (a Vault role, a cloud trust) changes its issuer to `https://<instance>/api/oidc` and keeps its claim bindings. `aws/role@1` for AWS |
+| `id_tokens:` | the same: `id_tokens: { VAULT_ID_TOKEN: { aud: https://vault.example.com } }` (`aud` may be a list). The token carries GitLab's claims (`project_path` and `namespace_path` as that GitLab names them, below its own path when it is served under one, `ref_type`, `ref_protected`, `pipeline_source`, `runner_id`, `runner_environment`) beside Pipemesh's, so the receiving side (a Vault role, a cloud trust) changes its issuer to `https://<instance>/api/oidc` and keeps its claim bindings. `aws/role@1` for AWS |
 | `CI_JOB_TOKEN` passed to another service (Vault, an admission check, an internal API) | an `id_tokens:` token for that service's audience: nothing outside Pipemesh can check `CI_JOB_TOKEN`. A service that only calls `GET /api/v4/job` with it keeps working, against the Pipemesh instance's URL |
 
 ## Variables

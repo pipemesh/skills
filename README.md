@@ -82,10 +82,11 @@ Pipemesh reads `plugin.json` on `main` to know the latest.
   skill gives you the compare URL).
 - Node 20 or newer and network access for `npx pipemesh check`. Without
   them the agent checks the definition by hand against the same rules.
-- Pipemesh connects to GitHub and GitLab. On a self-hosted Pipemesh the
-  skill points the CLI at it (`npx pipemesh login --api=<url>`, pipemesh
-  0.10.0 or newer); behind a TLS-inspecting proxy, set
-  `NODE_EXTRA_CA_CERTS` to the company's CA bundle first.
+- Pipemesh connects to GitHub and GitLab: gitlab.com, and on a
+  self-hosted Pipemesh any self-managed GitLabs its admin added. On a
+  self-hosted Pipemesh the skill points the CLI at it (`npx pipemesh
+  login --api=<url>`, pipemesh 0.10.0 or newer); behind a TLS-inspecting
+  proxy, set `NODE_EXTRA_CA_CERTS` to the company's CA bundle first.
 
 ## Layout
 
