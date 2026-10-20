@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.18.0;
+**Before Step 1, check this skill is current** (it is version 0.19.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.18.0
+npx pipemesh@latest version --skill=0.19.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -161,10 +161,10 @@ job's job_type*):
 
 | The job… | `job_type:` | checks out by default | skips by default |
 | --- | --- | --- | --- |
-| reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | everything (`true`) | `built`: reuses an earlier run with the same inputs |
+| reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | everything (`true`) | `reused`: reuses an earlier run with the same inputs |
 | ships what it consumes to an environment — **pipelines only** | `deploy` | nothing | `unchanged`: runs when what it ships changed |
 | must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` (also: no `job_type:`) | nothing | `never` |
-| runs a body (a CI suite) as one node and waits for it | `workflow` | its jobs' checkouts | its jobs': `built` if all are builds |
+| runs a body (a CI suite) as one node and waits for it | `workflow` | its jobs' checkouts | its jobs': `reused` if all are builds |
 | hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | its jobs' checkouts (`fingerprint:` narrows them) | `unchanged` |
 
 A deploy in a workflow is a load error: a pull-request preview or a
@@ -246,7 +246,7 @@ The rules that most often go wrong — they differ from other CI systems:
 3. **Every job has a `job_type:`; write it on every job**, even a task.
    The job type sets the defaults in the table above; override one on
    the job when it's wrong for that job (a `job_type: task` with
-   `skip: built`, a `job_type: build` whose `checkout:` lists
+   `skip: reused`, a `job_type: build` whose `checkout:` lists
    `services/orders` and `libs`). Deploys and child pipelines exist
    only in the pipeline; never put `skip: unchanged` in a workflow body.
    `kind:` is the old name and a load error.
@@ -288,7 +288,7 @@ The rules that most often go wrong — they differ from other CI systems:
    (`deploy/`, `charts/app`) and gets the artifact through `consumes:`.
    A task that only reads git history or the commit checks out nothing
    (history stays complete, so `git log` and `git merge-base` work).
-   The checkout is also the job's fingerprint: a `built`/`unchanged`
+   The checkout is also the job's fingerprint: a `reused`/`unchanged`
    job runs again only when a file it checks out, or something it
    consumes, changed. Files named by `${checksum:…}` in the cache key
    and the directories of images Pipemesh builds (`build:`) are added for you. An empty list, a list

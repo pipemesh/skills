@@ -5,7 +5,7 @@ Three different mechanisms, often confused:
 | Mechanism | Holds | Scope | Use it for |
 | --- | --- | --- | --- |
 | **Entries** (`produces:` / `consumes:`) | the build's real outputs: files, images, packages — by digest | the revision; named consumers only | anything a later job ships, tests or builds on |
-| **Reuse** (`skip: built`, the default of builds) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
+| **Reuse** (`skip: reused`, the default of builds) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
 | **Cache** (`cache:`) | tool caches (`.npm`, `.gradle`, pip, Bazel repo cache) | one workload, any branch | making a job that does run faster |
 
 Plus **remote build caches** (Nx Cloud, Turborepo, BuildBuddy), which
@@ -68,7 +68,7 @@ build:
   rollback still have them. Reports expire by their date alone. Images
   and packages live in their registries and never expire here.
 - **What expiry does:** an expired artifact no longer downloads (410);
-  a rollback to it isn't offered; a `skip: built` run whose outputs
+  a rollback to it isn't offered; a `skip: reused` run whose outputs
   expired is no match, so the job builds again; a *no changes* skip
   that would carry an expired artifact forward runs instead; and a job
   that consumes it fails before its script:
@@ -284,9 +284,9 @@ To publish only when the package changed:
 `pipemesh produce unchanged sdk --digest "$d" || npm publish` re-emits
 the previous entry when the digest matches.
 
-## Reuse: skip: built
+## Reuse: skip: reused
 
-`skip: built` makes a job look its fingerprint up among earlier
+`skip: reused` makes a job look its fingerprint up among earlier
 successful runs and, on a match, record that run's outputs as its own
 (*reused*) instead of running. The fingerprint covers the job's
 definition, the files it checks out, consumed digests, parameters and
@@ -355,7 +355,7 @@ A cache definition is plain data: kept in its own file
   then start warm from what the pipeline saved; no extra trigger needed.
   A PR-only workflow whose cache paths no other workload uses has
   nothing to restore.
-- **A cache fills only when its job really runs.** A `skip: built` job
+- **A cache fills only when its job really runs.** A `skip: reused` job
   that is reused saves nothing, so after a key change the cache stays
   empty until a revision actually runs the job.
 - Limits: 2 GiB per entry. Out of the box an entry unused for 14 days

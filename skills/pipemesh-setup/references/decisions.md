@@ -149,14 +149,14 @@ job's commands do, not from its name:
 
 | What the job does | `job_type:` | `checkout:` default | `skip:` default | where |
 | --- | --- | --- | --- | --- |
-| compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | `true` | `built` | pipelines, workflows |
-| signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | `false` | `built` | pipelines, workflows |
+| compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | `true` | `reused` | pipelines, workflows |
+| signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | `false` | `reused` | pipelines, workflows |
 | ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | `false` | `unchanged` | **pipelines only** |
 | anything that must run on every revision: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` (no `job_type:` means this) | `false` | `never` | pipelines, workflows |
-| runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows |
+| runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | its jobs' combined | `reused` if all its jobs are builds, else `never` | pipelines, workflows |
 | hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | its body's jobs' combined; `fingerprint:` narrows it | `unchanged` | **pipelines only** |
 
-What the skip policies mean: `built` reuses the outputs of any earlier
+What the skip policies mean: `reused` reuses the outputs of any earlier
 successful run with the same fingerprint (*reused*); `unchanged` skips
 when the fingerprint equals the job's own last success (*no changes*,
 pipelines only); `never` always runs. The fingerprint covers the job's
@@ -188,7 +188,7 @@ Judgment calls:
   `consumes:` for what it ships. A deploy that checks out the whole
   repository redeploys on every commit.
 - **Override a default only on purpose**, with a comment:
-  `job_type: task` + `skip: built` (a costly check whose inputs are all
+  `job_type: task` + `skip: reused` (a costly check whose inputs are all
   checked out), `job_type: deploy` + `skip: never` (always re-apply).
 - **A job that reads nothing** (no checkout, no consumes, no secrets
   or config, no `image_from`, no `repos:`) and still skips runs once
