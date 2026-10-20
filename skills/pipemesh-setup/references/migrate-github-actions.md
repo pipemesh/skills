@@ -78,6 +78,8 @@ job.
 | `cache: npm` / `pip` / `gradle` on a setup action, `actions/cache` | `cache:` keyed on the lockfile checksum, paths inside the workspace, one definition shared by the PR and default-branch jobs (artifacts-and-caching.md → Cache) |
 | `pnpm/action-setup` | `corepack enable` in the script (or a `setup:` step `uses: node/pnpm@1`) |
 | `actions/upload-artifact` → `actions/download-artifact` | `produces:` on the producer → `consumes:` on the consumer |
+| `actions/upload-artifact` of a test or coverage report (nothing downloads it), `if: always()` | a `reports:` key on the job (uploaded whatever the outcome), shown in its Reports tab |
+| `$GITHUB_STEP_SUMMARY`, test-report actions (`dorny/test-reporter`, `mikepenz/action-junit-report`) | a `reports:` key on a Markdown file or the tool's HTML report; nothing parses JUnit into counts |
 | `aws-actions/configure-aws-credentials` with `role-to-assume` | a `setup:` step `uses: aws/role@1` `with:` `arn` and `region` (below); the role's trust policy gains Pipemesh's issuer and subjects (onboarding.md §4) |
 | `aws-actions/configure-aws-credentials` with access keys | prefer `aws/role@1`; otherwise `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` under `secrets:` |
 | `aws-actions/amazon-ecr-login` | `aws ecr get-login-password … \| docker login …` in the script |
