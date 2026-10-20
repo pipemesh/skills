@@ -85,7 +85,11 @@ browser):
 npx pipemesh login      # shows a code and opens a page; approve it signed in with GitHub or GitLab
 npx pipemesh repos      # is this repository listed? then skip connect
 npx pipemesh connect    # GitHub: installs the Pipemesh GitHub App; GitLab: opens the page to paste a group token; waits for its repositories
+npx pipemesh whoami     # who the CLI is signed in as, and in which organizations
 ```
+
+`login --no-browser` prints the page without opening it, and
+`connect --no-wait` opens the page and returns.
 
 On GitLab, sign in with the GitLab the repository lives on: an instance
 may talk to gitlab.com and its own GitLabs side by side, and an account
@@ -109,7 +113,12 @@ decides what they can do (admin/maintain operate pipelines, write can
 start manual workflows). The CLI's token acts as the person who
 approved it, with the same permissions, for 90 days
 (`npx pipemesh login --read-only` gets one that never changes
-anything).
+anything; `npx pipemesh login` again replaces whichever token it keeps,
+a read-only, revoked or expired one included, though a `PIPEMESH_TOKEN`
+in the environment still wins). A current CLI keeps it in the
+system's keychain (or `~/.config/pipemesh/credentials`) and uses it for
+every command, `npx pipemesh@latest api <path>` included: never read it
+out.
 3. The App is read-mostly: it reads contents, writes check runs, and —
    only for jobs that run on GitHub Actions (`github_actions:`) —
    starts and cancels Actions runs. It can never push code.
@@ -148,12 +157,17 @@ definition lists (names are `UPPER_SNAKE_CASE`):
 
 From the terminal, the user runs `npx pipemesh secrets set NAME` and
 types the value at its hidden prompt (`--org` for the organization's
-level; `npx pipemesh vars set NAME` for config). Never ask for a secret
+level; `--pull-requests` for a read-only credential pull-request runs
+may read; `npx pipemesh vars set NAME` for config; `secrets delete NAME`
+and `vars delete NAME` remove one). Never ask for a secret
 in the chat or put one in a command.
 
 Each edit is versioned: a revision pins the versions current when it
 started, and an edit to a value a pipeline job reads starts a new
-revision of its own (staging gets the new value before production).
+revision of the repository's pipeline (staging gets the new value
+before production). A child pipeline gets it through its parent: the
+parent's revision starts, and its `job_type: pipeline` job hands it
+over.
 List the exact names in your message.
 
 ### 4. Cloud access without stored keys (if the definition uses `aws/role@1` or identity tokens)
@@ -269,19 +283,44 @@ default branch before the first dispatch.
 ### 6. If jobs name a runner of your own (`runner: <name>`)
 
 The organization's owner creates the runner — in **Settings →
-Organization → Runners**, or from the repository:
+Organization → Runners**, or from the repository (ask first: it changes
+the organization):
 
 ```bash
 npx pipemesh runners create build-farm           # add --pull-requests only for private repositories
+npx pipemesh runners auth-token build-farm       # the join command for a machine, its token shown once
 ```
 
-It prints, once, the command each machine joins with
-(`gitlab-runner register … --registration-token pmr_…`); `npx pipemesh
-runners token build-farm` makes another. Jobs naming a runner never run
-on hosted compute; they wait for one of its machines, and their card
-says why. Pull requests' runs never reach a runner created without
-`--pull-requests`. Images used on your runners need bash, git, curl and
-tar.
+Each machine joins with `gitlab-runner register --url <Pipemesh>
+--token glrt-… --executor <executor>` (gitlab-runner 16 or later); the
+web app's **Add a machine** gives the same command. Older agents can
+still join with a registration token (`npx pipemesh runners token
+build-farm`, `pmr_…`, and `--registration-token`). Jobs naming a runner
+never run on hosted compute; they wait for one of its machines, and
+their card says why. Pull requests' runs never reach a runner created
+without `--pull-requests`. Images used on your runners need bash, git,
+curl and tar.
+
+A runner whose machines hold credentials (a cloud role, say) should be
+limited to the jobs it's meant for:
+
+- `--repositories=<p,…>`: repository paths without the host (`*` one
+  level, `**` any, `acme/payments/**`) or `id:<n>`.
+- `--refs=<r,…>`: `default` (the branch each pipeline runs),
+  `branch:<glob>`, `tag:<glob>`. A runner with refs never takes
+  pull-request jobs.
+- A job that names the runner from outside its scope fails at once,
+  and its log says what the runner takes.
+
+`npx pipemesh runners update <name>` changes them (`--repositories=`
+with nothing lifts the limit; `--description=`, `--paused`, `--resume`,
+`--no-pull-requests`). `npx pipemesh runners list` shows the runners,
+their scope and machines. `runners apply <file>` creates or updates the
+runners a file declares (`--prune` deletes the others),
+`runners management-token <name>` makes a token for automation that
+manages only the organization's runners (`--expires-in-days=<n>`), and
+`runners delete <name>` removes a runner and its machines. Each of
+these changes something: ask first.
 
 ### 7. Merge and watch
 
@@ -292,7 +331,9 @@ tar.
   board is at `https://pipemesh.io/github.com/<org>/<repo>` (the
   pipeline at `…/-/pipeline`); from the terminal,
   `npx pipemesh watch --sha=<merge commit>` follows it until it settles
-  and `npx pipemesh logs <job>` shows a job's log. If the definition doesn't load, the
+  and `npx pipemesh logs <job>` shows a job's log (a workflow run's:
+  `npx pipemesh@latest logs <workflow> --run=<n> [--job=<job>]`, every attempt;
+  `npx pipemesh runs <workflow>` lists run numbers). If the definition doesn't load, the
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
   with; later revisions skip what didn't change.
@@ -301,7 +342,24 @@ tar.
   most likely reads something its `checkout:` leaves out: the checkout
   is enforced. Add the path to the job's `checkout:` (or use `true`)
   and push again. The job's Rules tab on the board shows its effective
-  job type, checkout and skip, and where each came from.
+  job type, checkout and skip, and where each came from (for a workflow
+  or pipeline job, also the artifacts its fingerprint reads and what
+  `fingerprint:` narrowed). A workflow or pipeline job takes no
+  `checkout:`: fix the body's job that reads the file.
+- **A job that consumes an expired artifact** fails before its script:
+  "consumes DIST: build/dist expired on <date> — re-run build at
+  revision N to make it again". `npx pipemesh@latest artifacts build
+  --rev=N` shows the artifact and its date. Running the producer at
+  that revision again makes a fresh copy: tell the user, since
+  `npx pipemesh rerun` only retries a failed or canceled run. Then
+  `npx pipemesh rerun <consumer>` retries the consumer (ask first).
+- **A job that fails with "artifact storage for this organization is
+  full"** hit the organization's artifact cap: its `produces:` upload
+  was refused. `npx pipemesh@latest storage` shows what is in use.
+  Expired artifacts are deleted every hour; only a Pipemesh admin can
+  raise the cap or shorten retention (Pipemesh admin → Storage, in the
+  web app). Caches never fail a job at the cap: older entries are
+  evicted, or the save is a warning in the log.
 - Tag-triggered workflows fire for tags pushed from now on; existing
   tags are history.
 - Pull requests opened after that get check runs named
@@ -309,9 +367,14 @@ tar.
   ones that matter required in branch protection; GitHub's merge queue
   works with them unchanged. A PR that breaks the definition gets a
   failing `config` check whose log is the load error.
-- Hosted runners are metered per organization (concurrent jobs and
-  build minutes per month, shown under **My account → Compute**); a job
-  over the limit waits, it doesn't fail.
+- Hosted runners are metered per organization: on pipemesh.io 20 vCPU
+  at once (10 small jobs) and 2,000 build minutes a month, weighted by
+  size (micro ¼×, small 1×, medium 2×, large 4×; a Docker daemon
+  doubles it), shown in **Settings → Organization → Compute** and by
+  `npx pipemesh@latest compute`. A job over a compute limit is held
+  (*queued · held*), not failed; storage is the other way round
+  (above). Only a Pipemesh admin changes a limit (Pipemesh admin →
+  Compute).
 
 ### 8. Retire the old CI
 
