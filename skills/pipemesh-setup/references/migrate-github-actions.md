@@ -51,7 +51,7 @@ job.
 | `needs:` | `needs:` — plus `consumes:` where an output is passed |
 | `runs-on: ubuntu-*` | `runner: linux-amd64-small` (x86-64, like GitHub's), or nothing for the arm64 default (`linux-arm64-small`) when the job's tools have arm64 builds — prefer arm64 for new work, keep amd64 for what downloads x86-64 binaries or must ship amd64 natively. Pick `image:` for the toolchain. More memory or cores: the `-medium` size |
 | `runs-on: ubuntu-*-arm` | nothing (the arm64 default) |
-| `runs-on: ubuntu-*-xl` / larger GitHub runners | the `-large` size (8 vCPU / 26 GiB); there is no larger hosted size |
+| `runs-on: ubuntu-*-xl` / larger GitHub runners | the `-medium` size (4 vCPU / 13 GiB); `-large` (8 vCPU / 26 GiB) is on request, so ask the user before writing it; there is no larger hosted size |
 | `runs-on:` self-hosted labels / `macos-*` / `windows-*` | `runner: <name>` — a runner the organization creates (`npx pipemesh runners create <name>`) and joins machines to — or run the job on Actions (`github_actions:`) |
 | a step running `docker`, Testcontainers or `docker compose` | `dockerd: true` on the job (jobs with an `oci` entry Pipemesh builds, `build:`, get it already) |
 | `container: image` | `image:` |

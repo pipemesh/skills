@@ -11,8 +11,8 @@ Three different mechanisms, often confused:
 Plus **remote build caches** (Nx Cloud, Turborepo, BuildBuddy), which
 live outside Pipemesh and are configured per tool.
 
-Contents: entries · consuming · images · reuse · cache · remote build
-caches · runtime variables
+Contents: entries · expiry and storage · consuming · images · reuse ·
+cache · remote build caches · runtime variables
 
 ## Entries: produces
 
@@ -39,8 +39,10 @@ build:
   or a glob that matches **exactly one** of them (`dist/*.js` must
   match a single file — use the directory otherwise). No leading `/`,
   no `..`.
-- `expire:` `Nd`/`Nh`/`Nm`/`never` (default 30d); `when:` `on_success`
-  (default) or `always`. Uploads are capped at 500 MB per entry.
+- `expire:` `Nd`/`Nh`/`Nm`/`never`; without it, the organization's
+  artifact retention (30 days out of the box; see Expiry below).
+  `when:` `on_success` (default) or `always`. Uploads are capped at
+  500 MB per entry.
 - Keys are `[A-Za-z0-9_-]+`. A declared key that the job doesn't
   produce fails the job.
 - The entry's digest is its content (a directory hashes its files'
@@ -53,6 +55,39 @@ build:
 - A `produces:` path is in the workspace, so it's whatever the job
   wrote there — or a checked-in file the job checks out. A path outside
   the checkout fails the job with "does not exist".
+
+## Expiry and storage
+
+- **Retention is a setting.** A file entry is kept 30 days after its
+  run unless the instance or the organization sets another retention
+  (a Pipemesh admin changes it). `expire:` on the entry wins. A changed
+  setting applies only to artifacts stored after it.
+- **Past its date an artifact is expired**, except the artifacts of the
+  job's two newest successful runs, which are kept (the Artifacts tab
+  says "kept: one of the job's two latest runs") so a waiting job and a
+  rollback still have them. Reports expire by their date alone. Images
+  and packages live in their registries and never expire here.
+- **What expiry does:** an expired artifact no longer downloads (410);
+  a rollback to it isn't offered; a `skip: built` run whose outputs
+  expired is no match, so the job builds again; a *no changes* skip
+  that would carry an expired artifact forward runs instead; and a job
+  that consumes it fails before its script:
+  "consumes DIST: build/dist expired on 2026-11-18 — re-run build at
+  revision 42 to make it again". Re-run the producer at that revision,
+  then the consumer.
+- **Each organization has an artifact cap and a cache cap** (on
+  pipemesh.io, 10 GB each; a self-hosted instance has none unless its
+  admin sets them). File entries, reports and Actions artifacts count;
+  images, packages and logs don't. At the artifact cap a `produces:`
+  upload is refused and the job fails: "artifact storage for this
+  organization is full: X of Y in use, and this upload is Z. Expired
+  artifacts are deleted every hour; an admin can raise the limit in
+  Settings → Storage." A report refused at the cap is only a line in
+  the log. A cache save at the cache cap evicts the organization's
+  least recently used entries, and at worst is a warning in the log.
+  Compute limits hold a job; storage fails it.
+- The organization's **Settings → Storage** shows what is in use
+  against each cap, with a warning from 90%.
 
 ## Consuming
 
@@ -115,7 +150,9 @@ nothing.
 Three cases; pick by who pulls the image.
 
 **Architecture first.** Pipemesh's hosted runners are **Linux arm64**
-by default and **amd64** when the job names a `linux-amd64-*` size.
+by default and **amd64** when the job names a `linux-amd64-*` size. (On
+a self-hosted instance, a job without a size runs on the architecture
+of the instance's runner; ask its admin.)
 Every `image:` needs a variant for the job's architecture (the official
 language images have both), and what a job builds — `docker build` and
 images Pipemesh builds, native modules `npm ci` compiles or downloads,
@@ -254,8 +291,8 @@ fingerprint on every commit and reuses only on a revert; a build that
 narrows its checkout to what it reads (sources, lockfile, build config)
 reuses whenever those are unchanged. Runs on the default branch, tags
 and the pipeline reuse only each other; a pull request reuses those
-first, then its own earlier runs, never another PR's. Expired artifacts
-don't match.
+first, then its own earlier runs, never another PR's. A run whose
+outputs have expired doesn't match: the job builds again.
 
 It is the default of `job_type: build`, in pipelines
 and in workflows. Deploys keep `skip: unchanged` (their default; it
@@ -317,8 +354,12 @@ A cache definition is plain data: kept in its own file
 - **A cache fills only when its job really runs.** A `skip: built` job
   that is reused saves nothing, so after a key change the cache stays
   empty until a revision actually runs the job.
-- Limits: 2 GiB per entry, 10 GiB per workload; entries unused for 14
-  days are evicted.
+- Limits: 2 GiB per entry. Out of the box an entry unused for 14 days
+  is evicted, and a pipeline's entries together stay under 10 GB (the
+  least recently used go first); both are defaults a Pipemesh admin can
+  change for the instance or one organization ("only when space is
+  needed" turns age eviction off). The organization's cache cap also
+  evicts its least recently used entries.
 
 Mapping from other CI: GitHub `actions/cache` / `setup-node cache: npm`
 / `setup-python cache: pip` → `cache:` with the lockfile checksum;

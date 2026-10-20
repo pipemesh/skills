@@ -484,8 +484,9 @@ jobs:
   run. `- uses: pipemesh/produce@v1` emits an image or npm package
   entry.
 - A `github_actions:` job can't also have `script`, `setup`, `uses`,
-  `image`, `tags`, `secrets`, `cache` or `publish` — the Actions run is
-  the execution. Secrets stay in GitHub.
+  `image`, `image_from`, `services`, `runner`, `dockerd`, `secrets`,
+  `id_tokens`, `cache`, or an `oci` entry with `build:` — the Actions
+  run is the execution. Secrets stay in GitHub.
 - The Pipemesh GitHub App needs **Actions: read and write**; an
   organization that installed it earlier must accept the permission.
 
@@ -519,7 +520,8 @@ dispatch:
       job_type: pipeline                       # the body is shared: watch only this service
       stage: dispatch
       fingerprint:
-        artifacts: [graph/orders]              # hands the revision over only when this changed
+        artifacts:                             # hands the revision over only when this changed
+          - graph/orders
         checkout: false
       body: !ref service
       variables:
@@ -528,7 +530,8 @@ dispatch:
       job_type: pipeline
       stage: dispatch
       fingerprint:
-        artifacts: [graph/payments]
+        artifacts:
+          - graph/payments
         checkout: false
       body: !ref service
       variables:
@@ -758,8 +761,7 @@ pins a commit of each, and a push to any of them starts a revision.
 sign_app:
   job_type: build               # signs the consumed app; checks out only its script
   stage: release
-  tags:
-    - macos                     # the first tag is the queue; runs only on runners registered to it
+  runner: mac-signing           # the organization's own runner: runs only on its machines
   consumes:
     APP: build/app
   checkout:
@@ -771,10 +773,12 @@ sign_app:
     signed: out/App.zip
 ```
 
-Untagged jobs run on Pipemesh's hosted runners. A tagged job never runs
-on hosted compute — it waits for a runner on its queue (the open-source
-`gitlab-runner` agent registered with a token from **My account →
-Runners**). The checkout is enforced there too.
+Jobs without `runner:`, or with a hosted size, run on Pipemesh's
+hosted runners. A job that names the organization's own runner never
+runs on hosted compute — it waits for one of that runner's machines (the
+open-source `gitlab-runner` agent, joined with a token from **Settings
+→ Organization → Runners** or `npx pipemesh runners auth-token
+mac-signing`; onboarding.md §6). The checkout is enforced there too.
 
 ## 12. Tests that need a database (there is no `services:`)
 

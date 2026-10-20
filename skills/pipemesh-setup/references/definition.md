@@ -70,8 +70,10 @@ pipemesh:
   one source: `!settings` on a name the body or the run that started
   the job also sets is a load error. Settings belong to the revision:
   each revision pins the versions current when it started, and an edit
-  (`npx pipemesh vars set NAME …`) starts a revision for every pipeline
-  with a job that reads it.
+  (`npx pipemesh vars set NAME …`) starts a revision of the repository's
+  pipeline when one of its jobs reads it. A child pipeline's job that
+  reads it gets the edit through the parent: the parent's revision
+  starts, and its `job_type: pipeline` job hands it over.
 - `image: !var NAME`: the job's image is the value of its variable
   `NAME` — a `!settings` one holding a full image reference, best
   pinned by digest, or a plain value (resolved when the definition
@@ -245,12 +247,13 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `stage` | **required**; must be one of the body's `stages`. Places the job on the board — does **not** order execution |
 | `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the job type |
 | `skip` | `unchanged` \| `built` \| `never` — when it may skip. Default from the job type |
-| `script` | shell, as a block scalar (`|`) or a list of lines; runs in `bash` |
+| `script` | shell, as a block scalar (`|`) or a list of lines; runs in `bash`. A block scalar reaches the job verbatim: blank lines and trailing spaces are kept, so a heredoc writes exactly what it says |
 | `before_script` / `after_script` | joined with `script` into one shell script under `set -e`: `after_script` does **not** run when `script` fails |
 | `uses` / `with` | run a component instead of a script |
-| `github_actions` | run the job as a GitHub Actions workflow and wait for it: the file (`deploy.yml`), or a map of `workflow`, `ref`, `inputs`, `artifacts` |
+| `github_actions` | run the job as a GitHub Actions workflow and wait for it: the file (`deploy.yml`), or a map of `workflow`, `ref`, `inputs` |
 | `setup` | a list of steps, each `uses:` (and `with:`): script-only components prepended to `script` |
-| `body` / `workload` | `job_type: workflow` and `job_type: pipeline` only: the body to run (`!ref`, `!include`, inline; its `type:` matches the job type), or an existing workload's alias |
+| `body` | `job_type: workflow` and `job_type: pipeline` only: the body to run (`!ref`, `!include`, inline; its `type:` matches the job type) |
+| `fingerprint` | `job_type: pipeline` only: `artifacts:` and `checkout:`, narrowing what decides the hand-over (job_type: workflow and job_type: pipeline, below) |
 | `image` | a **public** container image with bash, git, curl and tar (private images: build them with an `oci` entry's `build:` + `image_from`), or `!var NAME`: the image a job variable holds (a `!settings` one pins it in Settings) |
 | `image_from` | run in an image another job built: `<job>/<oci key>` (exclusive with `image`) |
 | `services` | loads but is **ignored** by the runners — start services in the script (patterns.md §12) |
@@ -260,9 +263,9 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `needs` | jobs to wait for; no files flow along it (a job reads what it `consumes:`) |
 | `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
 | `produces` | entries this job outputs (files, images, packages); an `oci` entry with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps |
-| `reports` | what the job writes for people to read, shown in the job's Reports tab: `key: <path>` or `key: { path, title, expire }`. A directory with `index.html` is a site, a `.md` file a document, an image an image. Uploaded whatever the outcome; a missing one never fails the job. Not consumable and not in the fingerprint: an output a job also reads goes under `produces:` too. On `github_actions:` jobs a key is the run's Actions artifact of that name. Not on `job_type: workflow`/`pipeline` |
+| `reports` | what the job writes for people to read, shown in the job's Reports tab: `key: <path>` or `key: { path, title, expire }`. A directory with `index.html` is a site, a `.md` file a document, an image an image. Uploaded whatever the outcome; a missing one never fails the job. Not consumable and not in the fingerprint: an output a job also reads goes under `produces:` too. On `github_actions:` jobs a key is the run's Actions artifact of that name. Not on `job_type: workflow`/`pipeline` (their body's jobs declare them). Reports count toward the organization's artifact storage and expire as artifacts do unless `expire:` says otherwise; a site holds at most 10,000 files |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
-| `runner` | where it runs: a hosted size — `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26), and the same sizes on x86-64 as `linux-amd64-small`, `-medium`, `-large` — or the organization's own runner by name. No `xlarge` |
+| `runner` | where it runs: a hosted size — `linux-arm64-micro` (¼ vCPU / 512 MiB, no Docker daemon: for a notification or a tag), `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26, on request), and the same sizes on x86-64 as `linux-amd64-micro`, `-small`, `-medium`, `-large` — or the organization's own runner by name. No `xlarge`. Build minutes count by size: micro ¼×, small 1×, medium 2×, large 4×, and a Docker daemon doubles them |
 | `dockerd` | `true`: the job gets a Docker daemon (Testcontainers, `docker compose`, `docker build`); an `oci` entry with `build:` implies it. Without it the `docker` CLI has no daemon |
 | `matrix` | load-time expansion |
 | `timeout_seconds` | integer; default 3600 on Pipemesh runners, and at most 3600 on hosted ones |
@@ -277,7 +280,8 @@ exist**: `when`, `only`, `except`, `rules`, `extends`, `dependencies`,
 `environment`, `if`, `runs-on`, `steps`, `env`, `strategy`,
 `continue-on-error` — see the migration references for what replaces
 each. Keys Pipemesh **removed**: `kind:` (now `job_type:`), `paths:`,
-`delegate:`, `trigger:` (see the end of this file).
+`delegate:`, `trigger:`, `workload:`, `artifacts:`, `publish:`,
+`tags:`, `rules:`, `config:` (see the end of this file).
 
 ## Job types
 
@@ -290,7 +294,7 @@ Every job has a job type; write `job_type:` on every job. Absent
 | `deploy` | `false` | `unchanged` | **pipelines** | an executor |
 | `task` (default) | `false` | `never` | pipelines, workflows | an executor |
 | `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows | a `type: workflow` body, waited for |
-| `pipeline` | `false` (declared; checks nothing out) | `unchanged` | **pipelines** | a child pipeline (a `type: pipeline` body), handed the revision |
+| `pipeline` | its jobs' combined (it checks nothing out; `fingerprint:` narrows what it watches) | `unchanged` | **pipelines** | a child pipeline (a `type: pipeline` body), handed the revision |
 
 - **`build`** reads the source and is hermetic, so an earlier run with
   the same fingerprint can stand in for it. Tests, lint, image builds
@@ -309,7 +313,12 @@ Every job has a job type; write `job_type:` on every job. Absent
 - Every default can be overridden on the job (a `job_type: build` whose
   `checkout:` lists `services/orders` and `libs`; a `job_type: task`
   with `skip: built`). The board's Rules tab shows each effective value
-  and where it came from: "skip: built (from job_type: build)";
+  and where it came from: "skip: built (from job_type: build)". For a
+  `job_type: workflow`/`pipeline` job it also shows an `artifacts:` row
+  (what its body reaches with `../`, or `fingerprint.artifacts`) and
+  says what `fingerprint:` narrowed. It warns when a run succeeded
+  without writing a report the job declares (its output path likely
+  moved).
   `npx pipemesh check` lists the effective values.
 - `job_type:` belongs to the job, never to a component: the same
   component can be a build in one definition and a task in another.
@@ -432,12 +441,13 @@ deploy_prod:
 ```
 
 - `github_actions:` takes `workflow` (the file under
-  `.github/workflows`, or its numeric id), `ref`, `inputs` (≤ 8;
-  `pipemesh_sha` and `pipemesh_run` are reserved) and `artifacts`. The
-  job takes `consumes:` and `produces:` (an entry `dist: file` under
-  `produces:` imports the run's Actions artifact named `dist`), and none of
+  `.github/workflows`, or its numeric id), `ref` and `inputs` (≤ 8;
+  `pipemesh_sha` and `pipemesh_run` are reserved). The
+  job takes `consumes:`, `produces:` (an entry `dist: file` under
+  `produces:` imports the run's Actions artifact named `dist`) and
+  `reports:`, and none of
   `script`, `setup`, `uses`, `image`, `image_from`, `services`, `runner`,
-  `dockerd`, `secrets`, `id_tokens`, `cache`, `artifacts`, nor an `oci` entry with `build:` — secrets stay in GitHub.
+  `dockerd`, `secrets`, `id_tokens`, `cache`, nor an `oci` entry with `build:` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
   over every job of it and of each local reusable workflow it calls:
   `actions/checkout` with `sparse-checkout:` → those directories (plus
@@ -466,15 +476,17 @@ orders:                                  # hand the revision to a child pipeline
   variables:                             # the child's variables
     SERVICE: orders
   fingerprint:                           # optional: narrow what decides the hand-over
-    artifacts: [graph/orders]            # instead of the artifacts the body reaches with ../
+    artifacts:                           # instead of the artifacts the body reaches with ../
+      - graph/orders
     checkout: false                      # instead of the body's checkouts (false or a list)
 ```
 
 - Both take `body:` (the child's body), `variables:`, `stage:`, `needs:`, `skip:`,
-  `timeout_seconds:`, `allow_failure:`, `matrix:` and `was:` — none of
-  the executor keys, no `consumes:` or `checkout:` (the body's jobs say
-  what they read), and no `produces:`: consumers name the body's
-  artifacts by path (`ci/build/dist`).
+  `timeout_seconds:`, `allow_failure:`, `matrix:` and `was:`, and a
+  pipeline job `fingerprint:` — none of the executor keys, no
+  `consumes:`, `checkout:` or `reports:` (each a load error: the body's
+  jobs say what they read and report), and no `produces:`: consumers
+  name the body's artifacts by path (`ci/build/dist`).
 - **Both read what their body's jobs read**: the union of their
   checkouts, the Settings variables and secrets they read, the artifacts
   they reach with `../`, and the body's own text.
@@ -486,25 +498,31 @@ orders:                                  # hand the revision to a child pipeline
   time.
 - **`job_type: pipeline`** hands the revision over only when something
   its body reads changed (`skip: unchanged`, or `never`). Another
-  repository's files count at the version the revision pinned. It
-  settles as *Dispatched*; the child promotes the revision on its own
-  board.
+  repository's files count at the version the revision pinned; one the
+  pipeline doesn't declare under `repos:` can't be compared, so the job
+  hands every revision over. A Settings edit starts a revision of the
+  parent, and the job hands it over. It settles as *Dispatched*; the
+  child promotes the revision on its own board.
 - **`fingerprint:`** (pipeline jobs only) narrows what it watches: a
   shared body that picks its service by a variable reads every
   service's files, so each job watches its own. `artifacts:` lists
   produced artifacts (`<job>/<key>`), which the job also waits for;
   `checkout:` is `false` or a list. Variables, secrets and the body's
   text always count. A workflow job can't narrow: a match reuses its
-  run.
+  run. A `fingerprint.artifacts` path that names a report is a load
+  error (a report is no input).
 - Inside a body, a consume of `../build/jar` names the parent's `build`
-  job's `jar` entry (the `job_type: workflow`/`pipeline` job consumes it
-  too).
+  job's `jar` entry: the parent job waits for `build`, and a new `jar`
+  changes its fingerprint. Never write `consumes:` on the parent job for
+  it.
 - The child lives under the parent: `…/repo/-/pipeline/<job>`.
 
 ## Ordering
 
 **A job waits only for what it names**: the jobs in `needs:` and the
-producers of what it `consumes:`. A job that names nothing starts with
+producers of what it `consumes:` (for a `job_type: workflow`/`pipeline`
+job, the producers of what its body reaches with `../`, and of its
+`fingerprint.artifacts`). A job that names nothing starts with
 the revision, whatever its stage. When translating stage-ordered CI
 (GitLab, Jenkins stages, CircleCI workflows), add the `needs:` edges
 explicitly. Cycles are load errors.
@@ -683,11 +701,21 @@ replacement:
 | a standalone body, job or component without `type:` | the load error names its shape: add `type: workflow`, `pipeline`, `job` or `component` |
 | `kind: pipeline` / `kind: workflow` at the top of a body | `type: pipeline` / `type: workflow`, matching where the body is used |
 | `paths:` on a job | `checkout:` (an empty `paths:` → `checkout: false`; no `paths:` → `checkout: true`, which only a build defaults to) |
-| `delegate:` with `type: workflow` or `type: pipeline` and `params:` (`body`, `variables`) | `job_type: workflow` / `job_type: pipeline` with `body:`, `variables:` (and, for a pipeline, what decides the hand-over: `consumes:` or `checkout:`) on the job |
+| `delegate:` with `type: workflow` or `type: pipeline` and `params:` (`body`, `variables`) | `job_type: workflow` / `job_type: pipeline` with `body:`, `variables:` (and, for a pipeline, what narrows the hand-over: `fingerprint:` with `artifacts:` and `checkout:`) on the job |
 | `delegate:` with `type: github_actions` and `params:` (`workflow`, `inputs`) | `github_actions:` (`workflow`, `inputs`) on a build, deploy or task |
 | `trigger:` | as `delegate:` |
 | `paths:` in a mount under a job's `repos:` | `checkout:` |
 | a job without a job type reading the whole repository | it is a `task` that checks out nothing: give it its `job_type:` and checkout |
+| `workload:` on a job | `body:` (`!ref`, `!include` or inline) |
+| `artifacts:` on a job | a `produces:` entry on the job that writes the files, named under `consumes:` by each job that reads them |
+| `github_actions:` with `artifacts:` | a `produces:` file entry (`dist: file`): it imports the run's Actions artifact of the same name |
+| `consumes:` on a `job_type: workflow`/`pipeline` job | the body's jobs consume the parent's artifacts with `../` (`../build/jar`); a pipeline job's `fingerprint: { artifacts: }` says which ones it watches |
+| `checkout:` on a `job_type: workflow`/`pipeline` job | nothing: its body's jobs say what they read; a pipeline job's `fingerprint: { checkout: }` narrows it (`false` or a list), and `skip: never` hands every revision over |
+| `publish:` | an image Pipemesh builds is a `produces:` entry with `build: <directory>`; any other image the script pushes and records with `pipemesh produce` |
+| `tags:` (runner labels) | `runner:`, a hosted size or the organization's own runner by name |
+| `rules:` | `checkout:` lists what the job reads, and `skip:` says when it may skip |
+| `config:` | each name under `variables:` as `NAME: !settings` |
+| `sources:` | `checkout:` |
 
 ## Editor validation
 

@@ -55,6 +55,11 @@ npx pipemesh instance https://pipemesh.acme.internal      # instead, where sign-
 npx pipemesh instance                                    # which one commands use, and why
 ```
 
+When the user also uses pipemesh.io, `npx pipemesh instance <url> --here`
+points only the repository they're in at their instance;
+`npx pipemesh instance --reset` (with `--here`, for this repository)
+forgets the choice.
+
 Behind a TLS-inspecting proxy (Zscaler and the like), or with an
 instance whose certificate comes from the company's own CA, Node needs
 that CA: `export NODE_EXTRA_CA_CERTS=/path/to/ca-bundle.pem` before
@@ -133,9 +138,11 @@ persistence), what is cached and keyed on what, which cloud
 credentials are used (static keys vs OIDC), approvals before
 production, matrices, services (databases), Docker in jobs (→ `dockerd: true`),
 memory-hungry jobs (→ a bigger `runner:`), self-hosted runner labels,
-concurrency groups. Also note what is *not* in CI but obviously part of
-the release (a deploy script the README tells people to run by hand) —
-mention it, don't automate it unasked.
+concurrency groups, and output people read (test results, coverage,
+screenshots: → `reports:` on the job that writes it). Also note what
+is *not* in CI but obviously part of the release (a deploy script the
+README tells people to run by hand) — mention it, don't automate it
+unasked.
 
 ## Step 3 — Decide the shape, and ask when in doubt
 
@@ -154,7 +161,7 @@ job's job_type*):
 | ships what it consumes to an environment — **pipelines only** | `deploy` | nothing | `unchanged`: runs when what it ships changed |
 | must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` (also: no `job_type:`) | nothing | `never` |
 | runs a body (a CI suite) as one node and waits for it | `workflow` | its jobs' checkouts | its jobs': `built` if all are builds |
-| hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | nothing | `unchanged` |
+| hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | its jobs' checkouts (`fingerprint:` narrows them) | `unchanged` |
 
 A deploy in a workflow is a load error: a pull-request preview or a
 manual hotfix deploy is a `task` there, and isn't tracked as a
@@ -223,8 +230,10 @@ pipemesh:
 The rules that most often go wrong — they differ from other CI systems:
 
 1. **`stage:` does not order execution.** A job waits only for the jobs
-   in its `needs:` and the producers of what it `consumes:`. Translate
-   stage order into explicit `needs:` edges.
+   in its `needs:` and the producers of what it `consumes:` (a workflow
+   or pipeline job: of what its body reaches with `../`, and a pipeline
+   job of its `fingerprint.artifacts` too). Translate stage order into
+   explicit `needs:` edges.
 2. **One branch is watched: the one the repository was added with**
    (its default branch, recorded by name). The pipeline follows it (no
    trigger; one per repository, registered as `pipeline`). Pull
@@ -307,6 +316,9 @@ The rules that most often go wrong — they differ from other CI systems:
    without it): the production deploys are what DORA metrics,
    `pipemesh deployments` and `pipemesh deployed` count. Staging, preview
    and canary deploys are `false`; ask when the environment isn't clear.
+   What a job writes for people to read (test results as a site, a
+   coverage summary) is a `reports:` key on that job, shown in its
+   Reports tab; no job consumes a report.
 8. **A job runs on one executor**: `script:` (Pipemesh's runners),
    `uses:` (a component) or `github_actions:` (an existing Actions
    workflow, dispatched and waited for). The executor is where the job
@@ -326,7 +338,9 @@ The rules that most often go wrong — they differ from other CI systems:
    images your own jobs run in via `image_from:`. Hosted runners are **arm64**
    unless the job names a `linux-amd64-*` size: what a job builds is its
    runner's architecture — check the deploy target's architecture and
-   ask if it's amd64.
+   ask if it's amd64. On a self-hosted instance a job without a size
+   runs on the architecture of the instance's runner (its admin knows),
+   and its default image is `ghcr.io/pipemesh/runner`.
 10. **Pull-request runs never save caches; they restore what the
    default-branch jobs saved with the same cache `paths:`.** Key on
    `${checksum:<lockfile>}`, keep paths inside the workspace, and give
@@ -410,11 +424,13 @@ nothing); tell the user that the check sends them to Pipemesh (the
 instance `npx pipemesh instance` names, pipemesh.io unless set).
 
 It prints the load error, if any, then warnings, then every job's
-effective `job_type`, checkout and skip policy, and exits 1 on an
-error. The loader stops at the first error, so fix it and run again
-until the definition loads. Fix or consciously accept each warning — in
+effective `job_type`, checkout and skip policy (`-q` leaves the job
+list out), and exits 1 on an error. The loader stops at the first
+error, so fix it and run again until the definition loads. Fix or consciously accept each warning — in
 particular *reads nothing* (the job runs once and then skips every
-revision: give it a checkout or a consume, or `skip: never`). Read the
+revision: give it a checkout or a consume, or `skip: never`; for a
+`job_type: workflow` or `pipeline` job, fix its body's jobs, since it
+takes neither key). Read the
 job list against the inventory: each build checks out what it
 compiles, each deploy what it runs, each task what it needs.
 
@@ -435,8 +451,10 @@ where Pipemesh reports any load error with the file and key.
 Then re-read the result against the inventory: every row is covered or
 deliberately dropped; every job has a `job_type:`; every standalone
 body, job and component has its `type:`; every deploy is a
-`job_type: deploy` in the pipeline and consumes what it ships; nothing
-deploys from a pull request; the files are block style throughout.
+`job_type: deploy` in the pipeline and consumes what it ships; test and
+coverage output the old CI kept is a `reports:` key on the job that
+writes it; nothing deploys from a pull request; the files are block
+style throughout.
 
 ## Step 6 — Summarize
 
@@ -451,7 +469,8 @@ names and the structure: say so before you make one for a private
 repository. Put the link at the top of the summary and in the PR body.
 While you and the user iterate on the definition, run
 `npx pipemesh preview --watch` in the background instead: each save
-updates the same link, so they watch one page while you edit.
+updates the same link, so they watch one page while you edit
+(`--no-browser` prints the link without opening it).
 
 Then tell the user, concisely (see the template in `references/onboarding.md`):
 the files written, a mapping of old jobs → new jobs, the decisions and
@@ -484,11 +503,19 @@ the exact subject lines of those jobs for their trust policies.
 
 Offer to do the first part from the terminal: `npx pipemesh login`
 (show the user the code and page it prints; they approve it in the
-browser — never approve it for them), `npx pipemesh repos` to see
+browser — never approve it for them; `--no-browser` only prints the
+page), `npx pipemesh repos` to see
 whether the repository is connected, `npx pipemesh connect` if it isn't
-(the user installs the GitHub App in the page it opens), and
+(the user installs the GitHub App in the page it opens; `--no-wait`
+returns at once), and
 `npx pipemesh enable` — ask before enabling, since it turns the
 repository on in their account. Every command takes `--json`.
+`npx pipemesh whoami` says who the CLI is signed in as. Running
+`npx pipemesh login` again replaces the token it keeps, including a
+read-only, revoked or expired one; a `PIPEMESH_TOKEN` in the
+environment still wins over it, and the CLI says so.
+`npx pipemesh logout` revokes the token and forgets it; when revoking
+fails, it still forgets it and says where to revoke it.
 
 ## After it's on: following it, and what went out
 
@@ -499,8 +526,9 @@ Once the repository is enabled, answer questions about it with the CLI
 | --- | --- |
 | What would my edit change? | edit, `npx pipemesh check`, then `npx pipemesh preview` (`--watch` while iterating) — give the user the link before committing |
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
-| Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
-| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers |
+| Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` (or `--rev=<n>`; `--timeout=<minutes>`, default 60) — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
+| What ran in a workflow? | `npx pipemesh runs [workflow]` — the latest runs and their numbers (`--limit=<n>`) |
+| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); the board's job panel says why Pipemesh failed an earlier attempt ("the job's node was lost") |
 | What do I put in a cloud trust? | `npx pipemesh identity` — the issuer and each job's subject (never compose one) |
 | Anything no command answers | `npx pipemesh api <path>` (`api POST <path> --data='{…}'` to change something: ask first) — the CLI makes the call signed in as the user and prints the answer |
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
@@ -526,8 +554,8 @@ Acting on it changes something, so ask the user first, every time
 | Start a manual workflow | `npx pipemesh run <workflow>` |
 | Approve or reject a waiting deploy | `npx pipemesh approve <job>` / `reject <job>` (`--rev=<n>` when several wait) |
 | Stop new revisions reaching a job | `npx pipemesh hold <job> --reason="…"`; `release <job>` lets them in |
-| Run a failed job again | `npx pipemesh rerun <job>`; a workflow run's: `rerun <workflow> --run=<n>` |
+| Run a failed job again | `npx pipemesh rerun <job>`; a workflow run's failed jobs: `rerun <workflow> --run=<n>` (`--job=<job>` for one) |
 | Cancel | `npx pipemesh cancel <job>` (or `<workflow> --run=<n>`); add `--yes` only once the user said so |
 | Roll back | `npx pipemesh rollback <job> [--to=<n>]`: it runs the last good revision again and holds the job; add `--yes` only once the user said so |
 | Report a Pipemesh problem | when a Pipemesh command or page fails in a way the definition doesn't explain (a 5xx, a hang, a load error that contradicts the docs), offer to report it; on a yes, `npx pipemesh report "<what happened, and what you expected>"` — it sends the CLI's last API calls (no bodies or credentials) and versions; give the user the report id it prints |
-| Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--org` for the account or organization |
+| Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--pull-requests` lets pull-request runs read it (read-only credentials only); `npx pipemesh vars set NAME`; `secrets delete NAME` / `vars delete NAME`; `--org` for the account or organization |

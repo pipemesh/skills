@@ -42,7 +42,7 @@ can't be enabled yet; a repository that moved to GitHub but kept its
    component (`uses:` + `with:`).
 6. **Artifacts are declared outputs.** `artifacts: paths:` +
    `dependencies:` becomes `produces:` on the producer and `consumes:`
-   (or `needs:`) on the consumer.
+   on the consumer (`needs:` orders but passes nothing).
 
 ## Key by key
 
