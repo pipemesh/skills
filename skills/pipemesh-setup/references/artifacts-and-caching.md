@@ -87,7 +87,11 @@ build:
   least recently used entries, and at worst is a warning in the log.
   Compute limits hold a job; storage fails it.
 - The organization's **Settings → Storage** shows what is in use
-  against each cap, with a warning from 90%.
+  against each cap, with a warning from 90%, and
+  `npx pipemesh@latest storage` prints the same; `npx pipemesh@latest
+  artifacts <job>` shows each artifact's expiry. Only a Pipemesh admin
+  changes caps, retention or eviction (Pipemesh admin → Storage, in the
+  web app); an organization's admins see its settings read-only.
 
 ## Consuming
 

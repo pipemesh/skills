@@ -115,8 +115,10 @@ approved it, with the same permissions, for 90 days
 (`npx pipemesh login --read-only` gets one that never changes
 anything; `npx pipemesh login` again replaces whichever token it keeps,
 a read-only, revoked or expired one included, though a `PIPEMESH_TOKEN`
-in the environment still wins). The CLI keeps it in the system's keychain and uses it for
-every command, `npx pipemesh api <path>` included: never read it out.
+in the environment still wins). A current CLI keeps it in the
+system's keychain (or `~/.config/pipemesh/credentials`) and uses it for
+every command, `npx pipemesh@latest api <path>` included: never read it
+out.
 3. The App is read-mostly: it reads contents, writes check runs, and —
    only for jobs that run on GitHub Actions (`github_actions:`) —
    starts and cancels Actions runs. It can never push code.
@@ -346,13 +348,17 @@ these changes something: ask first.
   `checkout:`: fix the body's job that reads the file.
 - **A job that consumes an expired artifact** fails before its script:
   "consumes DIST: build/dist expired on <date> — re-run build at
-  revision N to make it again". Re-run the producer at that revision,
-  then the consumer (both change something: ask first).
+  revision N to make it again". `npx pipemesh@latest artifacts build
+  --rev=N` shows the artifact and its date; re-run the producer
+  (`npx pipemesh rerun build`), then the consumer (both change
+  something: ask first).
 - **A job that fails with "artifact storage for this organization is
   full"** hit the organization's artifact cap: its `produces:` upload
-  was refused. Expired artifacts are deleted every hour; a Pipemesh
-  admin can raise the cap. Caches never fail a job at the cap: older
-  entries are evicted, or the save is a warning in the log.
+  was refused. `npx pipemesh@latest storage` shows what is in use.
+  Expired artifacts are deleted every hour; only a Pipemesh admin can
+  raise the cap or shorten retention (Pipemesh admin → Storage, in the
+  web app). Caches never fail a job at the cap: older entries are
+  evicted, or the save is a warning in the log.
 - Tag-triggered workflows fire for tags pushed from now on; existing
   tags are history.
 - Pull requests opened after that get check runs named
@@ -363,9 +369,11 @@ these changes something: ask first.
 - Hosted runners are metered per organization: on pipemesh.io 20 vCPU
   at once (10 small jobs) and 2,000 build minutes a month, weighted by
   size (micro ¼×, small 1×, medium 2×, large 4×; a Docker daemon
-  doubles it), shown in **Settings → Organization → Compute**. A job
-  over a compute limit is held (*queued · held*), not failed; storage
-  is the other way round (above).
+  doubles it), shown in **Settings → Organization → Compute** and by
+  `npx pipemesh@latest compute`. A job over a compute limit is held
+  (*queued · held*), not failed; storage is the other way round
+  (above). Only a Pipemesh admin changes a limit (Pipemesh admin →
+  Compute).
 
 ### 8. Retire the old CI
 

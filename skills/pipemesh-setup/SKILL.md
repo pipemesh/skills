@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition and shows the user the board it will draw (npx pipemesh preview); offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, what went to production, or whether a change was deployed.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition and shows the user the board it will draw (npx pipemesh preview); offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, why a job failed, what went to production, whether a change was deployed, or how much artifact storage and how many build minutes its organization has used.
 ---
 
 # Pipemesh setup
@@ -59,6 +59,10 @@ When the user also uses pipemesh.io, `npx pipemesh instance <url> --here`
 points only the repository they're in at their instance;
 `npx pipemesh instance --reset` (with `--here`, for this repository)
 forgets the choice.
+
+`npx pipemesh@latest instance` also says whether the instance's public
+view is on, and whether only Pipemesh admins add organizations (then
+the user asks one to add theirs).
 
 Behind a TLS-inspecting proxy (Zscaler and the like), or with an
 instance whose certificate comes from the company's own CA, Node needs
@@ -520,7 +524,9 @@ fails, it still forgets it and says where to revoke it.
 ## After it's on: following it, and what went out
 
 Once the repository is enabled, answer questions about it with the CLI
-(add `--json` to read the answer; public repositories need no sign-in):
+(add `--json` to read the answer; public repositories need no sign-in).
+The commands written `npx pipemesh@latest …` below are new: an older
+CLI says it doesn't know them.
 
 | Question | Command |
 | --- | --- |
@@ -528,9 +534,12 @@ Once the repository is enabled, answer questions about it with the CLI
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
 | Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` (or `--rev=<n>`; `--timeout=<minutes>`, default 60) — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
 | What ran in a workflow? | `npx pipemesh runs [workflow]` — the latest runs and their numbers (`--limit=<n>`) |
-| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); the board's job panel says why Pipemesh failed an earlier attempt ("the job's node was lost") |
+| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); `npx pipemesh@latest logs <job>` and the board's job panel say why Pipemesh failed an earlier attempt ("the job's node was lost") |
+| What did a job make, and until when? | `npx pipemesh@latest artifacts <job> [--rev=<n>]` (a pipeline job) or `npx pipemesh@latest artifacts <workflow> --run=<n> [--job=<job>]` — what it produced and consumed, each with its expiry ("expires 2026-11-18", "kept: one of the job's two latest runs", "never expires", "expired 2026-10-03"), and its reports with their state |
+| Is storage full? | `npx pipemesh@latest storage [--repo=<r>]` — the organization's artifact and cache storage against its caps, artifact retention, cache eviction and the per-pipeline cache limit; it warns from 90% |
+| Are we out of build minutes? | `npx pipemesh@latest compute [--repo=<r>]` — the organization's build minutes this month against its allowance, concurrent builds and the vCPU cap, minutes by runner |
 | What do I put in a cloud trust? | `npx pipemesh identity` — the issuer and each job's subject (never compose one) |
-| Anything no command answers | `npx pipemesh api <path>` (`api POST <path> --data='{…}'` to change something: ask first) — the CLI makes the call signed in as the user and prints the answer |
+| Anything no command answers | `npx pipemesh@latest api [method] <path>` (`/api/…`; `--data=<json>`, `--data=@file` or `--data=@-` for a body) — the CLI makes the call signed in as the user and prints the answer (JSON indented, tokens masked). Only GET without asking: ask the user before any other method |
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
 | Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, waiting for approval, failed, rolled back, or not yet; exit 0 when every one has it |
 
@@ -538,13 +547,33 @@ Once the repository is enabled, answer questions about it with the CLI
 once a production deploy ran a revision that contains it: a push of
 several commits makes one revision, at its head.
 
-**Never read, print or copy the CLI's token.** It is in the system's
-keychain (or `~/.config/pipemesh/credentials`), not in `config.json`,
-and every command above, `pipemesh api` included, uses it for you. Don't
+**Never read, print or copy the CLI's token.** A current CLI keeps it
+in the system's keychain (or `~/.config/pipemesh/credentials`), never
+in `config.json`; an older one kept it in `~/.config/pipemesh/config.json`.
+Every command above, `pipemesh api` included, uses it for you. Don't
 open those files, don't call the API with curl, and don't ask the user
 for a token or for `PIPEMESH_TOKEN`; if a call needs signing in, ask the
-user to run `npx pipemesh login`. The CLI shows only a token's last 4
+user to run `npx pipemesh login`. The CLI prints only a token's last 4
 characters (`pmk_…a1b2`).
+
+**Limits are a Pipemesh admin's.** Storage caps, artifact retention,
+cache eviction and compute limits change only in the web app, by a
+Pipemesh admin (**Pipemesh admin → Storage** / **Compute**); an
+organization's admins see its **Settings → Storage** read-only. The CLI
+only reads them. When one is in the way:
+
+- A job failed with "artifact storage for this organization is full":
+  run `npx pipemesh@latest storage`, show the user the numbers, and
+  suggest asking a Pipemesh admin to raise the cap or shorten
+  retention. Expired artifacts are deleted every hour.
+- A job is *queued · held* over a compute limit: `npx pipemesh@latest
+  compute` shows which; it starts once its size fits or the month rolls
+  over, or a Pipemesh admin raises the limit.
+- A consumer failed with "consumes DIST: build/dist expired on <date> —
+  re-run build at revision N to make it again":
+  `npx pipemesh@latest artifacts build --rev=N` shows it; re-running
+  `build` makes it again (`npx pipemesh rerun build`, ask first), then
+  re-run the consumer.
 
 Acting on it changes something, so ask the user first, every time
 (the server refuses what they may not do, and says why):
@@ -556,6 +585,7 @@ Acting on it changes something, so ask the user first, every time
 | Stop new revisions reaching a job | `npx pipemesh hold <job> --reason="…"`; `release <job>` lets them in |
 | Run a failed job again | `npx pipemesh rerun <job>`; a workflow run's failed jobs: `rerun <workflow> --run=<n>` (`--job=<job>` for one) |
 | Cancel | `npx pipemesh cancel <job>` (or `<workflow> --run=<n>`); add `--yes` only once the user said so |
-| Roll back | `npx pipemesh rollback <job> [--to=<n>]`: it runs the last good revision again and holds the job; add `--yes` only once the user said so |
+| Roll back | `npx pipemesh rollback <job> [--to=<n>]`: it runs the last good revision again and holds the job; add `--yes` only once the user said so (a revision whose artifacts expired isn't offered) |
+| Change a storage or compute limit, retention or cache eviction | not the CLI: a Pipemesh admin, in the web app (above) |
 | Report a Pipemesh problem | when a Pipemesh command or page fails in a way the definition doesn't explain (a 5xx, a hang, a load error that contradicts the docs), offer to report it; on a yes, `npx pipemesh report "<what happened, and what you expected>"` — it sends the CLI's last API calls (no bodies or credentials) and versions; give the user the report id it prints |
 | Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--pull-requests` lets pull-request runs read it (read-only credentials only); `npx pipemesh vars set NAME`; `secrets delete NAME` / `vars delete NAME`; `--org` for the account or organization |
