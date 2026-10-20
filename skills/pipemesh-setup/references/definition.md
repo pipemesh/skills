@@ -246,7 +246,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `production` | **required on a `job_type: deploy`**, refused elsewhere: `true` when the deploy reaches production (what DORA, `pipemesh deployments` and `pipemesh deployed` count), `false` for staging, preview, canary. A matrix's variants share it; it changes nothing about how the job runs |
 | `stage` | **required**; must be one of the body's `stages`. Places the job on the board — does **not** order execution |
 | `checkout` | the repository files the job's work reads, and all its workspace holds: `true`, `false` or a list of paths. Default from the job type |
-| `skip` | `unchanged` \| `built` \| `never` — when it may skip. Default from the job type |
+| `skip` | `unchanged` \| `reused` \| `never` — when it may skip. Default from the job type |
 | `script` | shell, as a block scalar (`|`) or a list of lines; runs in `bash`. A block scalar reaches the job verbatim: blank lines and trailing spaces are kept, so a heredoc writes exactly what it says |
 | `before_script` / `after_script` | joined with `script` into one shell script under `set -e`: `after_script` does **not** run when `script` fails |
 | `uses` / `with` | run a component instead of a script |
@@ -290,10 +290,10 @@ Every job has a job type; write `job_type:` on every job. Absent
 
 | `job_type:` | `checkout:` default | `skip:` default | allowed in | runs |
 | --- | --- | --- | --- | --- |
-| `build` | `true` | `built` | pipelines, workflows | an executor |
+| `build` | `true` | `reused` | pipelines, workflows | an executor |
 | `deploy` | `false` | `unchanged` | **pipelines** | an executor |
 | `task` (default) | `false` | `never` | pipelines, workflows | an executor |
-| `workflow` | its jobs' combined | `built` if all its jobs are builds, else `never` | pipelines, workflows | a `type: workflow` body, waited for |
+| `workflow` | its jobs' combined | `reused` if all its jobs are builds, else `never` | pipelines, workflows | a `type: workflow` body, waited for |
 | `pipeline` | its jobs' combined (it checks nothing out; `fingerprint:` narrows what it watches) | `unchanged` | **pipelines** | a child pipeline (a `type: pipeline` body), handed the revision |
 
 - **`build`** reads the source and is hermetic, so an earlier run with
@@ -312,8 +312,8 @@ Every job has a job type; write `job_type:` on every job. Absent
   such as a merge-base diff).
 - Every default can be overridden on the job (a `job_type: build` whose
   `checkout:` lists `services/orders` and `libs`; a `job_type: task`
-  with `skip: built`). The board's Rules tab shows each effective value
-  and where it came from: "skip: built (from job_type: build)". For a
+  with `skip: reused`). The board's Rules tab shows each effective value
+  and where it came from: "skip: reused (from job_type: build)". For a
   `job_type: workflow`/`pipeline` job it also shows an `artifacts:` row
   (what its body reaches with `../`, or `fingerprint.artifacts`) and
   says what `fingerprint:` narrowed. It warns when a run succeeded
@@ -376,7 +376,7 @@ checkout:                 # everything but these
 - **History is always complete**: the fetch is never shallow, so
   `git log`, `git diff` between commits and `git merge-base` work even
   with `checkout: false`.
-- **It is the job's fingerprint input**: a job with `skip: built` or
+- **It is the job's fingerprint input**: a job with `skip: reused` or
   `unchanged` runs again only when a file it checks out changed (or a
   consumed digest, its definition, a secret or config version). A
   `true` checkout makes every commit new work for the job.
@@ -402,7 +402,7 @@ secrets/config. The skip policy says what to do with it:
   *no changes*). After a failure it runs regardless until it succeeds.
   **Load error in a workflow body** (a workflow run has no earlier run
   to compare with).
-- `skip: built` — **builds.** Reuses the outputs of any
+- `skip: reused` — **builds.** Reuses the outputs of any
   earlier successful run with the same fingerprint (shown as
   *reused*). PRs reuse trusted (default-branch/tag/pipeline) runs and
   their own, never another PR's.
@@ -490,7 +490,7 @@ orders:                                  # hand the revision to a child pipeline
 - **Both read what their body's jobs read**: the union of their
   checkouts, the Settings variables and secrets they read, the artifacts
   they reach with `../`, and the body's own text.
-- **`job_type: workflow`** takes their skip: `built` when every job is a
+- **`job_type: workflow`** takes their skip: `reused` when every job is a
   build, so a workflow of builds reuses as a whole, artifacts included;
   `never` as soon as one job runs every time. `skip: never` is its only
   override. A body that works in another repository runs every time.

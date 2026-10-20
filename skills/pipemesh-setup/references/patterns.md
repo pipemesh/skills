@@ -41,7 +41,7 @@ pipeline:
     - production
   jobs:
     build:
-      job_type: build                   # skip: built — a revert or a docs-only commit reuses the stored bundle
+      job_type: build                   # skip: reused — a revert or a docs-only commit reuses the stored bundle
       stage: build
       image: node:22-bookworm
       checkout:                         # everything npm ci/test/build read

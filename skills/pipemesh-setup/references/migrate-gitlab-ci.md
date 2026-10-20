@@ -197,7 +197,7 @@ pipeline:
     - production
   jobs:
     build:
-      job_type: build                    # skip: built
+      job_type: build                    # skip: reused
       stage: build
       image: node:22-bookworm
       checkout:

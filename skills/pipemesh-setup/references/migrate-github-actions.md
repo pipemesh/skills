@@ -5,7 +5,7 @@ Two strategies, and they mix per job. Either way the job gets a
 
 - **Port** a job: its steps become a Pipemesh job's `script:` on
   Pipemesh runners. You get the full model — `produces:`/`consumes:`
-  by digest, `skip: built` reuse, `cache:`, OIDC identity, and an
+  by digest, `skip: reused` reuse, `cache:`, OIDC identity, and an
   enforced `checkout:`.
 - **Run it on Actions**: keep the Actions workflow as the compute and
   give the Pipemesh job `github_actions: <workflow file>`, which
