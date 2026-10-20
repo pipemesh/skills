@@ -59,7 +59,9 @@ can't be enabled yet; a repository that moved to GitHub but kept its
 | `needs:` | `needs:` (jobs of the same body) |
 | `dependencies:` | `consumes:` names exactly what the job receives |
 | `artifacts: paths:` | a `produces:` entry: `<key>:` with `path: <dir or file>` and `expire: 14d` under it |
-| `artifacts: reports: junit` | no equivalent; keep the file as a `produces:` entry if useful |
+| `artifacts: reports: junit` / `coverage_report` | no parsing into counts; point a `reports:` key at the tool's HTML output (`tests: build/reports/tests/test`) so people can read it in the job panel |
+| `artifacts: expose_as:` / `artifacts: paths:` kept only to browse | a `reports:` key (a directory with `index.html`, a `.md` file or an image) |
+| `artifacts: when: always` for test output | `reports:` uploads whatever the outcome; a `produces:` entry takes `when: always` |
 | `cache:key:files:` (a lockfile) | `cache:` with `key: deps-${checksum:<lock>}`, `restore_keys:` listing `deps-`, and `paths:` — PR runs don't save; they restore what default-branch jobs saved with the same paths (see artifacts-and-caching.md) |
 | `cache: policy: pull` | `policy: pull` in the job's `cache:` |
 | `rules: - if: $CI_PIPELINE_SOURCE == "merge_request_event"` | the job goes in the `on: pull_request` workflow body |

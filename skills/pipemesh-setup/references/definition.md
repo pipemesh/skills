@@ -260,6 +260,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `needs` | jobs to wait for; no files flow along it (a job reads what it `consumes:`) |
 | `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
 | `produces` | entries this job outputs (files, images, packages); an `oci` entry with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps |
+| `reports` | what the job writes for people to read, shown in the job's Reports tab: `key: <path>` or `key: { path, title, expire }`. A directory with `index.html` is a site, a `.md` file a document, an image an image. Uploaded whatever the outcome; a missing one never fails the job. Not consumable and not in the fingerprint: an output a job also reads goes under `produces:` too. On `github_actions:` jobs a key is the run's Actions artifact of that name. Not on `job_type: workflow`/`pipeline` |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
 | `runner` | where it runs: a hosted size — `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26), and the same sizes on x86-64 as `linux-amd64-small`, `-medium`, `-large` — or the organization's own runner by name. No `xlarge` |
 | `dockerd` | `true`: the job gets a Docker daemon (Testcontainers, `docker compose`, `docker build`); an `oci` entry with `build:` implies it. Without it the `docker` CLI has no daemon |
@@ -511,6 +512,12 @@ explicitly. Cycles are load errors.
 Entries (`produces:`) reach only the jobs that `consumes:` them by
 name — `needs:` orders but hands nothing over. A production deploy
 that needs staging still consumes the build's output itself.
+
+Reports (`reports:`) are for people, not jobs: test results as a site,
+a coverage summary, a screenshot. Declare them on the jobs that write
+them (test, lint, e2e), pointing at the tool's own output directory or
+file (`build/reports/tests/test`, `coverage/index.html`'s directory,
+`playwright-report`). Consuming a report is a load error.
 
 ## matrix
 
