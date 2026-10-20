@@ -534,7 +534,7 @@ CLI says it doesn't know them.
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
 | Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` (or `--rev=<n>`; `--timeout=<minutes>`, default 60) — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
 | What ran in a workflow? | `npx pipemesh runs [workflow]` — the latest runs and their numbers (`--limit=<n>`) |
-| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); `npx pipemesh@latest logs <job>` and the board's job panel say why Pipemesh failed an earlier attempt ("the job's node was lost") |
+| Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh@latest logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); `npx pipemesh@latest logs <job>` and the board's job panel say why Pipemesh failed an earlier attempt ("the job's node was lost") |
 | What did a job make, and until when? | `npx pipemesh@latest artifacts <job> [--rev=<n>]` (a pipeline job) or `npx pipemesh@latest artifacts <workflow> --run=<n> [--job=<job>]` — what it produced and consumed, each with its expiry ("expires 2026-11-18", "kept: one of the job's two latest runs", "never expires", "expired 2026-10-03"), and its reports with their state |
 | Is storage full? | `npx pipemesh@latest storage [--repo=<r>]` — the organization's artifact and cache storage against its caps, artifact retention, cache eviction and the per-pipeline cache limit; it warns from 90% |
 | Are we out of build minutes? | `npx pipemesh@latest compute [--repo=<r>]` — the organization's build minutes this month against its allowance, concurrent builds and the vCPU cap, minutes by runner |
@@ -571,9 +571,11 @@ only reads them. When one is in the way:
   over, or a Pipemesh admin raises the limit.
 - A consumer failed with "consumes DIST: build/dist expired on <date> —
   re-run build at revision N to make it again":
-  `npx pipemesh@latest artifacts build --rev=N` shows it; re-running
-  `build` makes it again (`npx pipemesh rerun build`, ask first), then
-  re-run the consumer.
+  `npx pipemesh@latest artifacts build --rev=N` shows it. Running
+  `build` at revision N again stores a fresh copy; tell the user, since
+  `npx pipemesh rerun` only retries a run that failed or was canceled
+  and can't do it. Then re-run the consumer (`npx pipemesh rerun <job>`
+  retries its failed run; ask first).
 
 Acting on it changes something, so ask the user first, every time
 (the server refuses what they may not do, and says why):

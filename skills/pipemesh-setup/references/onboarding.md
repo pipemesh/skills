@@ -332,7 +332,7 @@ these changes something: ask first.
   pipeline at `…/-/pipeline`); from the terminal,
   `npx pipemesh watch --sha=<merge commit>` follows it until it settles
   and `npx pipemesh logs <job>` shows a job's log (a workflow run's:
-  `npx pipemesh logs <workflow> --run=<n> [--job=<job>]`, every attempt;
+  `npx pipemesh@latest logs <workflow> --run=<n> [--job=<job>]`, every attempt;
   `npx pipemesh runs <workflow>` lists run numbers). If the definition doesn't load, the
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
@@ -349,9 +349,10 @@ these changes something: ask first.
 - **A job that consumes an expired artifact** fails before its script:
   "consumes DIST: build/dist expired on <date> — re-run build at
   revision N to make it again". `npx pipemesh@latest artifacts build
-  --rev=N` shows the artifact and its date; re-run the producer
-  (`npx pipemesh rerun build`), then the consumer (both change
-  something: ask first).
+  --rev=N` shows the artifact and its date. Running the producer at
+  that revision again makes a fresh copy: tell the user, since
+  `npx pipemesh rerun` only retries a failed or canceled run. Then
+  `npx pipemesh rerun <consumer>` retries the consumer (ask first).
 - **A job that fails with "artifact storage for this organization is
   full"** hit the organization's artifact cap: its `produces:` upload
   was refused. `npx pipemesh@latest storage` shows what is in use.
