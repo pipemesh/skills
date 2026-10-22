@@ -59,7 +59,7 @@ Preview of the board: <the link from npx pipemesh preview> (open until <date>)
 <the table from the summary>
 
 ## Before merging
-- [ ] Repository enabled in Pipemesh (it waits for this file on `main`)
+- [ ] Repository connected in Pipemesh (`npx pipemesh repos` lists it; its mesh activates when this file lands on `main`)
 - [ ] Secrets created in Pipemesh: `…`
 - [ ] Bootstrap stack deployed by hand, with the cloud trust for the job identities (subjects from `npx pipemesh identity` once this is merged): `<the command>`
 - [ ] <anything else this definition needs>
@@ -123,21 +123,27 @@ out.
    only for jobs that run on GitHub Actions (`github_actions:`) —
    starts and cancels Actions runs. It can never push code.
 
-### 2. Enable the repository
+### 2. Its mesh
 
-`npx pipemesh enable` inside the checkout (or `npx pipemesh enable
-<org>/<repo>`), or in the browser: **Repositories** → enable
-`<org>/<repo>`. Enabling records the
-repository's branch **by name** — its default branch at that moment
-(e.g. `main`). The pipeline, push workflows and the jobs' OIDC subjects
-all follow that branch. A later rename or a new default branch is not
-followed: changing it means removing the repository and adding it again,
-which starts a fresh history — so check the default branch is the one
-that should deploy before enabling. A repository without
-`pipemesh.yaml` on that branch is enabled in a waiting state and
-activates when the file lands — so enable it before merging the PR.
-For a multi-repository pipeline, also add each repository named under
-`repos:` to the same organization (they need no definition of their own).
+Every repository the connection reaches is a **mesh**: there is nothing
+to add or enable. It is **inactive** until a `pipemesh.yaml` lands on its
+branch, the default branch by name (e.g. `main`), and **active** from
+then on — merging the pull request is what turns it on.
+`npx pipemesh@latest mesh` shows its state (in the browser: **Meshes**,
+with an **Inactive** tab). The pipeline, push workflows and the jobs'
+OIDC subjects follow that branch.
+
+- **Another branch** is set in the repository's settings (**General**),
+  or with `npx pipemesh@latest mesh --branch=<b>`. Before the mesh is
+  first active it changes freely; afterwards it changes the jobs' OIDC
+  subjects (`ref:refs/heads/<branch>`), so Pipemesh shows the old and
+  new subjects and asks first (`--yes` on the CLI). Check the branch is
+  the one that should deploy before trusting its subjects.
+- **Disabling** a mesh (`mesh --disable`, or the switch in General)
+  stops everything new from running and keeps its history.
+- **For a multi-repository pipeline,** each repository named under
+  `repos:` must be reachable by the same organization's connection
+  (grant the GitHub App access to it); it needs no definition of its own.
 
 ### 3. Secrets and config
 
@@ -175,8 +181,8 @@ List the exact names in your message.
 Pipemesh is an OIDC issuer; trust it once per cloud account. **Don't
 compose the values: read them.** Subjects are written with ids (the
 GitHub repository's and each job's), so they can't be derived from
-names. Once the repository is enabled and the definition that declares
-the jobs is on its branch:
+names. Once the definition that declares the jobs is on its branch (its
+mesh is active):
 
 ```bash
 npx pipemesh identity                 # the repository you're in
