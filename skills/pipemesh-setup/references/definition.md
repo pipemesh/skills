@@ -669,8 +669,8 @@ pipeline:
 
 Values under the body's `repos:` are repository paths (strings). Each
 revision pins a commit of every declared repository; a push to any of
-them starts a revision. Declared repositories must be added to the
-same Pipemesh organization. A mount (`repos:` on a job) needs
+them starts a revision. Declared repositories must be reachable by the
+same Pipemesh organization's connection. A mount (`repos:` on a job) needs
 `mount:` and `checkout:` (`true` or a list — a mount exists to be
 read). Secrets, config and commit statuses stay the pipeline
 repository's.

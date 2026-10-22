@@ -1,6 +1,6 @@
 ---
 name: pipemesh-setup
-description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition and shows the user the board it will draw (npx pipemesh preview); offers to open a pull request; and explains how to add the repository in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, why a job failed, what went to production, whether a change was deployed, or how much artifact storage and how many build minutes its organization has used.
+description: Set up Pipemesh for a repository. Scans the existing CI/CD configuration (GitHub Actions, GitLab CI and other CI systems, Makefiles, deploy scripts, Dockerfiles, Nx/Turborepo/Bazel monorepos) and writes a pipemesh.yaml with the right pipelines and workflows, each job's job_type (build, deploy, task, workflow, pipeline) and the files it checks out, typed structures (type:) in block-style YAML, build artifacts passed by produces/consumes, caching, secrets and deploy stages; asks clarifying questions when the shape is unclear (pipeline vs workflow, where jobs run, environments); validates the definition and shows the user the board it will draw (npx pipemesh preview); offers to open a pull request; and explains how to turn it on in Pipemesh. Use this whenever the user mentions Pipemesh or pipemesh.yaml, wants to migrate or port their CI/CD to Pipemesh, onboard a repo to Pipemesh, or convert GitHub Actions or GitLab CI workflows into Pipemesh pipelines — and also to review, fix or extend an existing pipemesh.yaml, or to answer how a Pipemesh repository is doing, why a job failed, what went to production, whether a change was deployed, or how much artifact storage and how many build minutes its organization has used.
 ---
 
 # Pipemesh setup
@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.19.0;
+**Before Step 1, check this skill is current** (it is version 0.20.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.19.0
+npx pipemesh@latest version --skill=0.20.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -121,7 +121,7 @@ from names.
   git.acme.io"). An account on one GitLab is not the same account on
   another: sign in with the GitLab the repository lives on. If the
   remote is Bitbucket or another host, say so early: you can still write
-  the definition, but the repository can't be enabled there.
+  the definition, but Pipemesh can't run it there.
 
 ## Step 2 — Inventory what the CI does
 
@@ -449,7 +449,7 @@ The check does not flag these; look for them yourself:
 
 It needs Node 20 or newer and network access. Without them, check by
 hand against the rules in step 4 and definition.md. The same loader
-runs again when the file reaches the branch of an enabled repository,
+runs again when the file reaches its mesh's branch,
 where Pipemesh reports any load error with the file and key.
 
 Then re-read the result against the inventory: every row is covered or
@@ -494,14 +494,15 @@ unless the user chose to change them in step 3.
 
 ## Step 8 — Explain how to turn it on
 
-Walk the user through adding the repository in Pipemesh — sign in,
-connect the GitHub App, enable the repository, add the secrets and
+Walk the user through turning it on in Pipemesh — sign in, connect the
+GitHub App (every repository it reaches is a mesh, inactive until its
+`pipemesh.yaml` lands; there is nothing to add or enable), add the secrets and
 config this definition names, set up cloud trust for the exact job
 identities it uses, and what to watch after merging. Follow
 `references/onboarding.md`, and tailor it: list the real secret names,
 name the jobs that need cloud access, and skip sections that don't
 apply. Never compose an OIDC subject: they're written with ids. Once
-the repository is enabled and the definition merged, read them with
+the definition is merged and its mesh is active, read them with
 `npx pipemesh identity` (or offer to), and give the user the issuer and
 the exact subject lines of those jobs for their trust policies.
 
@@ -509,11 +510,11 @@ Offer to do the first part from the terminal: `npx pipemesh login`
 (show the user the code and page it prints; they approve it in the
 browser — never approve it for them; `--no-browser` only prints the
 page), `npx pipemesh repos` to see
-whether the repository is connected, `npx pipemesh connect` if it isn't
-(the user installs the GitHub App in the page it opens; `--no-wait`
-returns at once), and
-`npx pipemesh enable` — ask before enabling, since it turns the
-repository on in their account. Every command takes `--json`.
+whether the repository is connected, and `npx pipemesh connect` if it
+isn't (the user installs the GitHub App in the page it opens;
+`--no-wait` returns at once). Merging the pull request is what turns it
+on: `npx pipemesh@latest mesh` shows the mesh go from inactive to
+active. Every command takes `--json`.
 `npx pipemesh whoami` says who the CLI is signed in as. Running
 `npx pipemesh login` again replaces the token it keeps, including a
 read-only, revoked or expired one; a `PIPEMESH_TOKEN` in the
@@ -523,7 +524,7 @@ fails, it still forgets it and says where to revoke it.
 
 ## After it's on: following it, and what went out
 
-Once the repository is enabled, answer questions about it with the CLI
+Once its mesh is active, answer questions about it with the CLI
 (add `--json` to read the answer; public repositories need no sign-in).
 The commands written `npx pipemesh@latest …` below are new: an older
 CLI says it doesn't know them.

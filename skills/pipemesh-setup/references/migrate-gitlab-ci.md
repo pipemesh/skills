@@ -7,7 +7,7 @@ core `CI_COMMIT_*` variables keep working. The semantics around them
 differ in a few deep ways — read this before translating.
 
 Note: Pipemesh connects to GitHub today. A repository hosted on GitLab
-can't be enabled yet; a repository that moved to GitHub but kept its
+can't be connected yet; a repository that moved to GitHub but kept its
 `.gitlab-ci.yml` is the usual case for this reference.
 
 ## The big differences

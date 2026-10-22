@@ -751,8 +751,8 @@ pipeline:
       script: java -jar "$BILLING_JAR" --deploy staging
 ```
 
-Every declared repository must be added to the same Pipemesh
-organization (it needs no `pipemesh.yaml` of its own); each revision
+Every declared repository must be reachable by the same Pipemesh
+organization's connection (it needs no `pipemesh.yaml` of its own); each revision
 pins a commit of each, and a push to any of them starts a revision.
 
 ## 11. Jobs on your own machines

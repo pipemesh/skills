@@ -138,7 +138,7 @@ the assumption at the top of the summary.
 - **The service is spread over several repositories** (client library
   in one, consumer in another): one pipeline declaring `repos:`; jobs
   pick their repository with `repo:`. Every declared repository must be
-  added to the same Pipemesh organization.
+  reachable by the same Pipemesh organization's connection.
 
 ## Choosing each job's job_type
 
