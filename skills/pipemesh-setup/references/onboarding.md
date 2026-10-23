@@ -93,10 +93,23 @@ npx pipemesh whoami     # who the CLI is signed in as, and in which organization
 
 On GitLab, sign in with the GitLab the repository lives on: an instance
 may talk to gitlab.com and its own GitLabs side by side, and an account
-on one is not an account on another. Connecting a group takes a group
-access token (`api` scope, Maintainer role) pasted by an Owner of the
-group; where the instance has several GitLabs, the connect page asks
-which one the group is on.
+on one is not an account on another. Connecting a top-level group takes
+a group access token (`api` scope, Developer role or higher) pasted by an
+Owner of the group; where the instance has several GitLabs, the connect
+page asks which one the group is on. A Developer token posts commit
+statuses only on branches it may merge into, so tell the user to allow the
+token's bot user to merge under the group's Settings → Repository →
+Protected branches (or to use a Maintainer token).
+
+Then the group's Owner sets up its **webhook**, the step Pipemesh shows
+right after connecting (and the organization's **General** settings
+keep): one group hook added in GitLab with a **signing token** (Generate
+signing token; push, merge request and member events), pasted back into
+Pipemesh. Pipemesh can't add it itself. **On gitlab.com it is required**:
+nothing polls a gitlab.com group, so until the hook is set up, pushes
+there show up only with **refresh** on the repository, and merging the
+pull request does not turn the mesh on by itself. A self-managed group
+without one is polled every 5 minutes.
 
 Or in the browser:
 
