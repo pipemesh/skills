@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.21.0;
+**Before Step 1, check this skill is current** (it is version 0.22.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.21.0
+npx pipemesh@latest version --skill=0.22.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -537,8 +537,8 @@ CLI says it doesn't know them.
 | What ran in a workflow? | `npx pipemesh runs [workflow]` — the latest runs and their numbers (`--limit=<n>`) |
 | Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh@latest logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); `npx pipemesh@latest logs <job>` and the board's job panel say why Pipemesh failed an earlier attempt ("the job's node was lost") |
 | What did a job make, and until when? | `npx pipemesh@latest artifacts <job> [--rev=<n>]` (a pipeline job) or `npx pipemesh@latest artifacts <workflow> --run=<n> [--job=<job>]` — what it produced and consumed, each with its expiry ("expires 2026-11-18", "kept: one of the job's two latest runs", "never expires", "expired 2026-10-03"), and its reports with their state |
-| Is storage full? | `npx pipemesh@latest storage [--repo=<r>]` — the organization's artifact and cache storage against its caps, artifact retention, cache eviction and the per-pipeline cache limit; it warns from 90% |
-| Are we out of build minutes? | `npx pipemesh@latest compute [--repo=<r>]` — the organization's build minutes this month against its allowance, concurrent builds and the vCPU cap, minutes by runner |
+| Is storage full? | `npx pipemesh@latest storage [--org=<path>]` — the organization (named: `--org=`, else `PIPEMESH_DEFAULT_ORG`, else `npx pipemesh org default <path>`)'s artifact and cache storage against its caps, artifact retention, cache eviction and the per-pipeline cache limit; it warns from 90% |
+| Are we out of build minutes? | `npx pipemesh@latest compute [--org=<path>]` — the organization's build minutes this month against its allowance, concurrent builds and the vCPU cap, minutes by runner |
 | What do I put in a cloud trust? | `npx pipemesh identity` — the issuer and each job's subject (never compose one) |
 | Anything no command answers | `npx pipemesh@latest api [method] <path>` (`/api/…`; `--data=<json>`, `--data=@file` or `--data=@-` for a body) — the CLI makes the call signed in as the user and prints the answer (JSON indented, tokens masked). Only GET without asking: ask the user before any other method |
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
@@ -564,11 +564,12 @@ organization's admins see its **Settings → Storage** read-only. The CLI
 only reads them. When one is in the way:
 
 - A job failed with "artifact storage for this organization is full":
-  run `npx pipemesh@latest storage`, show the user the numbers, and
+  run `npx pipemesh@latest storage --org=<the repository's organization path>`,
+  show the user the numbers, and
   suggest asking a Pipemesh admin to raise the cap or shorten
   retention. Expired artifacts are deleted every hour.
 - A job is *queued · held* over a compute limit: `npx pipemesh@latest
-  compute` shows which; it starts once its size fits or the month rolls
+  compute --org=<path>` shows which; it starts once its size fits or the month rolls
   over, or a Pipemesh admin raises the limit.
 - A consumer failed with "consumes DIST: build/dist expired on <date> —
   re-run build at revision N to make it again":
@@ -591,4 +592,4 @@ Acting on it changes something, so ask the user first, every time
 | Roll back | `npx pipemesh rollback <job> [--to=<n>]`: it runs the last good revision again and holds the job; add `--yes` only once the user said so (a revision whose artifacts expired isn't offered) |
 | Change a storage or compute limit, retention or cache eviction | not the CLI: a Pipemesh admin, in the web app (above) |
 | Report a Pipemesh problem | when a Pipemesh command or page fails in a way the definition doesn't explain (a 5xx, a hang, a load error that contradicts the docs), offer to report it; on a yes, `npx pipemesh report "<what happened, and what you expected>"` — it sends the CLI's last API calls (no bodies or credentials) and versions; give the user the report id it prints |
-| Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--pull-requests` lets pull-request runs read it (read-only credentials only); `npx pipemesh vars set NAME`; `secrets delete NAME` / `vars delete NAME`; `--org` for the account or organization |
+| Secrets and variables | `npx pipemesh secrets` / `vars` list them (secret values never come back); the user sets one with `npx pipemesh secrets set NAME` and types the value at its hidden prompt — never ask for a secret in the chat or put it in a command; `--pull-requests` lets pull-request runs read it (read-only credentials only); `npx pipemesh vars set NAME`; `secrets delete NAME` / `vars delete NAME`; `--org=<path>` (`github.com/acme`) for the organization's own level |
