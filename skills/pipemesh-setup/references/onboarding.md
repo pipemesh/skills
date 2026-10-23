@@ -175,8 +175,8 @@ definition lists (names are `UPPER_SNAKE_CASE`):
   saying which.
 
 From the terminal, the user runs `npx pipemesh secrets set NAME` and
-types the value at its hidden prompt (`--org` for the organization's
-level; `--pull-requests` for a read-only credential pull-request runs
+types the value at its hidden prompt (`--org=<path>`, such as
+`--org=github.com/acme`, for the organization's own level; `--pull-requests` for a read-only credential pull-request runs
 may read; `npx pipemesh vars set NAME` for config; `secrets delete NAME`
 and `vars delete NAME` remove one). Never ask for a secret
 in the chat or put one in a command.
@@ -302,10 +302,14 @@ default branch before the first dispatch.
 ### 6. If jobs name a runner of your own (`runner: <name>`)
 
 The organization's owner creates the runner — in **Settings →
-Organization → Runners**, or from the repository (ask first: it changes
-the organization):
+Organization → Runners**, or with the CLI (ask first: it changes the
+organization). Organization commands name the organization even inside a
+repository: `--org=<path>`, else `PIPEMESH_DEFAULT_ORG`, else the one
+saved with `npx pipemesh org default <path>`; with none, the CLI says
+which are the user's.
 
 ```bash
+npx pipemesh org default github.com/acme         # once: the organization these act on
 npx pipemesh runners create build-farm           # add --pull-requests only for private repositories
 npx pipemesh runners auth-token build-farm       # the join command for a machine, its token shown once
 ```
