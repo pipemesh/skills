@@ -310,15 +310,15 @@ which are the user's.
 
 ```bash
 npx pipemesh org default github.com/acme         # once: the organization these act on
-npx pipemesh runners create build-farm           # add --pull-requests only for private repositories
-npx pipemesh runners auth-token build-farm       # the join command for a machine, its token shown once
+npx pipemesh runners create build-farm           # its token (glrt-…) is shown once; add --pull-requests only for private repositories
+npx pipemesh runners token build-farm            # another token, shown once
 ```
 
 Each machine joins with `gitlab-runner register --url <Pipemesh>
---token glrt-… --executor <executor>` (gitlab-runner 16 or later); the
-web app's **Add a machine** gives the same command. Older agents can
-still join with a registration token (`npx pipemesh runners token
-build-farm`, `pmr_…`, and `--registration-token`). Jobs naming a runner
+--token glrt-… --executor <executor>` (gitlab-runner 16 or later; any
+executor). Any number of machines can share a token. The web app shows
+the token on creating the runner and on its **New token**. There is no
+`--registration-token` flow. Jobs naming a runner
 never run on hosted compute; they wait for one of its machines, and
 their card says why. Pull requests' runs never reach a runner created
 without `--pull-requests`. Images used on your runners need bash, git,

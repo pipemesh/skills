@@ -773,7 +773,7 @@ Jobs without `runner:`, or with a hosted size, run on Pipemesh's
 hosted runners. A job that names the organization's own runner never
 runs on hosted compute — it waits for one of that runner's machines (the
 open-source `gitlab-runner` agent, joined with a token from **Settings
-→ Organization → Runners** or `npx pipemesh runners auth-token
+→ Organization → Runners** or `npx pipemesh runners token
 mac-signing`; onboarding.md §6). The checkout is enforced there too.
 
 ## 12. Tests that need a database (there is no `services:`)
