@@ -25,16 +25,17 @@ can't be connected yet; a repository that moved to GitHub but kept its
    schedule jobs a workflow `on: schedule`. A job that appears in several
    of them goes into each body (share it with `!ref`).
 3. **`rules: changes:` becomes `checkout:` + the job's `job_type:`.**
-   The job type sets the skip policy (a `build` reuses, a `deploy` skips when
-   unchanged, a `task` always runs) and the checkout is what's
-   compared. And the comparison base is the job's own last successful
+   The job type decides when the job runs (a `build` reuses, a `deploy`
+   skips when its fingerprint matches its last success, a `task` always
+   runs); never write `skip:` (deprecated and ignored). The checkout is what's compared. A job
+   that must run every time is a `task`. And the comparison base is the job's own last successful
    run (or any earlier build with the same inputs), not the previous
    commit — a failed build can't be skipped past.
 4. **A job checks out only what it lists.** GitLab clones the whole
    tree for every job; Pipemesh gives each job exactly its `checkout:`
    (`true`, `false` or a list), and a file left out isn't in the
    workspace. A `build` defaults to the whole tree; a `deploy` or
-   `task` (and a job without `job_type:`) to nothing. List
+   `task` to nothing. List
    what each script reads. History is complete either way, so
    `git diff`/`git merge-base` work.
 5. **No anchors, `extends:` or hidden `.jobs`.** Reuse a whole job with
@@ -49,7 +50,7 @@ can't be connected yet; a repository that moved to GitHub but kept its
 | GitLab | Pipemesh |
 | --- | --- |
 | `stages:` | `stages:` (board columns only) |
-| `stage:` | `stage:` — plus a `job_type:` on every job (decisions.md → *Choosing each job's job_type*) |
+| `stage:` | `stage:` — plus an explicit `job_type:` on every converted job; a job without one doesn't load (decisions.md → *Choosing each job's job_type*) |
 | `script:` / `before_script:` / `after_script:` | same, but the three run as one script under `set -e`: `after_script` is skipped when `script` fails — move cleanup that must always run into a `trap … EXIT` |
 | `default: before_script:` | repeat on each job, or put the lines in a component / `!ref` list spliced into `script` |
 | `image:` | same — a public image with bash, git, curl, tar (`python:3.12` → `python:3.12-bookworm` is the same thing, explicit) |
@@ -197,7 +198,7 @@ pipeline:
     - production
   jobs:
     build:
-      job_type: build                    # skip: reused
+      job_type: build                    # reused while src/ and the lockfile are unchanged
       stage: build
       image: node:22-bookworm
       checkout:
@@ -214,7 +215,7 @@ pipeline:
           path: dist
           expire: 30d
     deploy_staging:
-      job_type: deploy                   # skip: unchanged; checks out only deploy.sh
+      job_type: deploy                   # no changes unless dist or deploy.sh changed; checks out only deploy.sh
       production: false
       stage: staging
       consumes:

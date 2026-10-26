@@ -127,14 +127,13 @@ the assumption at the top of the summary.
   `job_type: pipeline` job per service runs a shared `type: pipeline`
   service body, with `SERVICE: <name>` under its `variables:`, and
   watches only its service's artifact (`fingerprint: { artifacts:
-  [graph/<name>], checkout: false }`), so it hands the revision over
-  only when that artifact changed. See `patterns.md`.
+  [graph/<name>] }`), so it hands the revision over only when that
+  artifact changed. See `patterns.md`.
 - **Several services, no build graph** (plain directories): the same
-  dispatch shape without the graph job. A pipeline job reads what its
-  body reads; a body shared by every service reads every service's
-  files, so each job narrows to its own: `fingerprint: { checkout:
-  [services/<name>, libs/shared] }`. A body per service needs no
-  narrowing.
+  dispatch shape without the graph job. Each pipeline job names the
+  directories it watches: `fingerprint: { checkout: [services/<name>,
+  libs/shared] }`. A pipeline job without `fingerprint:` hands every
+  revision to its child.
 - **The service is spread over several repositories** (client library
   in one, consumer in another): one pipeline declaring `repos:`; jobs
   pick their repository with `repo:`. Every declared repository must be
@@ -143,25 +142,28 @@ the assumption at the top of the summary.
 ## Choosing each job's job_type
 
 `job_type:` says what a job is (`type:` is a structure's shape — on a
-job it is always `job`). It sets two defaults — what the job checks out
-and when it may skip — and where it may appear. Decide it from what the
+job it is always `job`). Every job has one: a job without it is a load
+error, and nothing defaults to `task`. The job type decides when the
+job runs, what it checks out by default, and where it may appear;
+`skip:` is deprecated and ignored (`npx pipemesh check` warns), so
+never write it. Decide it from what the
 job's commands do, not from its name:
 
-| What the job does | `job_type:` | `checkout:` default | `skip:` default | where |
+| What the job does | `job_type:` | when it runs | `checkout:` | where |
 | --- | --- | --- | --- | --- |
-| compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | `true` | `reused` | pipelines, workflows |
-| signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | `false` | `reused` | pipelines, workflows |
-| ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | `false` | `unchanged` | **pipelines only** |
-| anything that must run on every revision: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` (no `job_type:` means this) | `false` | `never` | pipelines, workflows |
-| runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | its jobs' combined | `reused` if all its jobs are builds, else `never` | pipelines, workflows |
-| hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | its body's jobs' combined; `fingerprint:` narrows it | `unchanged` | **pipelines only** |
+| compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | reuses an earlier pass with the same fingerprint (*reused*), else runs | `true` by default | pipelines, workflows |
+| signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | reuses an earlier pass with the same fingerprint (*reused*), else runs | `false` | pipelines, workflows |
+| ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | skips when its fingerprint matches its last success (*no changes*); after a failed or cancelled run, runs in full until one succeeds | `false` by default | **pipelines only** |
+| anything that must run every time: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` | every time | `false` by default | pipelines, workflows |
+| runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | every time; each build in its body reuses an earlier pass with the same fingerprint and hands up that pass's artifacts | not allowed | pipelines, workflows |
+| hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | without `fingerprint:`, every revision; with it, only when something it names changed | not allowed (`fingerprint.checkout` names the files it watches) | **pipelines only** |
 
-What the skip policies mean: `reused` reuses the outputs of any earlier
-successful run with the same fingerprint (*reused*); `unchanged` skips
-when the fingerprint equals the job's own last success (*no changes*,
-pipelines only); `never` always runs. The fingerprint covers the job's
-definition, the files it checks out, the digests of what it consumes,
-its parameters and the versions of the secrets and config it declares.
+A build's or deploy's fingerprint covers the job's definition, the
+files it checks out, the digests of what it consumes, its parameters
+and the versions of the secrets and config it declares. A pipeline
+job's fingerprint is what its `fingerprint:` names (`artifacts:`,
+`checkout:`), plus its body's text, its `variables:` and the Settings
+variables and secrets the body reads.
 
 Judgment calls:
 
@@ -187,10 +189,11 @@ Judgment calls:
   lists `deploy` (or `charts/app` and `scripts/deploy.sh`), plus
   `consumes:` for what it ships. A deploy that checks out the whole
   repository redeploys on every commit.
-- **Override a default only on purpose**, with a comment:
-  `job_type: task` + `skip: reused` (a costly check whose inputs are all
-  checked out), `job_type: deploy` + `skip: never` (always re-apply).
-- **A job that reads nothing** (no checkout, no consumes, no secrets
-  or config, no `image_from`, no `repos:`) and still skips runs once
-  and then shows *no changes* forever: give it its inputs or
-  `skip: never`. `npx pipemesh check` warns.
+- **Nothing overrides the job type** (`skip:` is ignored). A costly check
+  whose inputs are all checked out is a `build`, so it reuses; a job
+  that must run every time is a `task`.
+- **A build or deploy that reads nothing** (no checkout, no consumes,
+  no secrets or config, no `image_from`, no `repos:`) runs once and
+  then is reused or shows *no changes* forever: list what it reads in
+  `checkout:`, or make it a `job_type: task`. `npx pipemesh check`
+  warns.

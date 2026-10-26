@@ -5,7 +5,7 @@ Three different mechanisms, often confused:
 | Mechanism | Holds | Scope | Use it for |
 | --- | --- | --- | --- |
 | **Entries** (`produces:` / `consumes:`) | the build's real outputs: files, images, packages — by digest | the revision; named consumers only | anything a later job ships, tests or builds on |
-| **Reuse** (`skip: reused`, the default of builds) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
+| **Reuse** (every `job_type: build`) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
 | **Cache** (`cache:`) | tool caches (`.npm`, `.gradle`, pip, Bazel repo cache) | one workload, any branch | making a job that does run faster |
 
 Plus **remote build caches** (Nx Cloud, Turborepo, BuildBuddy), which
@@ -68,7 +68,7 @@ build:
   rollback still have them. Reports expire by their date alone. Images
   and packages live in their registries and never expire here.
 - **What expiry does:** an expired artifact no longer downloads (410);
-  a rollback to it isn't offered; a `skip: reused` run whose outputs
+  a rollback to it isn't offered; a build pass whose outputs
   expired is no match, so the job builds again; a *no changes* skip
   that would carry an expired artifact forward runs instead; and a job
   that consumes it fails before its script:
@@ -135,7 +135,7 @@ The deploy idiom, used by every demo:
 
 ```yaml
 deploy_production:
-  job_type: deploy                # pipelines only; skip: unchanged
+  job_type: deploy                # pipelines only; runs when what it ships changed
   production: true
   needs:
     - deploy_staging              # promotion order
@@ -284,9 +284,9 @@ To publish only when the package changed:
 `pipemesh produce unchanged sdk --digest "$d" || npm publish` re-emits
 the previous entry when the digest matches.
 
-## Reuse: skip: reused
+## Reuse: what a build does
 
-`skip: reused` makes a job look its fingerprint up among earlier
+A `job_type: build` looks its fingerprint up among earlier
 successful runs and, on a match, record that run's outputs as its own
 (*reused*) instead of running. The fingerprint covers the job's
 definition, the files it checks out, consumed digests, parameters and
@@ -297,12 +297,13 @@ reuses whenever those are unchanged. Runs on the default branch, tags
 and the pipeline reuse only each other; a pull request reuses those
 first, then its own earlier runs, never another PR's. A run whose
 outputs have expired doesn't match: the job builds again.
+`reuse: trusted` on a build reuses only passes a trusted run made.
 
-It is the default of `job_type: build`, in pipelines
-and in workflows. Deploys keep `skip: unchanged` (their default; it
-exists only in pipelines — in a workflow body it is a load error), and
-tasks `skip: never`. A `job_type: workflow` job reuses as a whole when
-every job of its body is a build.
+Every build reuses, in pipelines and in workflows; `skip:` is
+deprecated and ignored (`npx pipemesh check` warns), so never write it. A deploy skips when its fingerprint matches its last
+success (*no changes*; pipelines only), and a task runs every time. A
+`job_type: workflow` job always runs; the builds in its body reuse,
+and hand up the reused pass's artifacts.
 
 ## Cache
 
@@ -355,7 +356,7 @@ A cache definition is plain data: kept in its own file
   then start warm from what the pipeline saved; no extra trigger needed.
   A PR-only workflow whose cache paths no other workload uses has
   nothing to restore.
-- **A cache fills only when its job really runs.** A `skip: reused` job
+- **A cache fills only when its job really runs.** A build
   that is reused saves nothing, so after a key change the cache stays
   empty until a revision actually runs the job.
 - Limits: 2 GiB per entry. Out of the box an entry unused for 14 days

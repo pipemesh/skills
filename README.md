@@ -31,7 +31,7 @@ Sets up Pipemesh for a repository. Ask your agent something like
    which sends the definition and only the files it names to Pipemesh
    and loads them with the same loader the repository's pipeline will
    meet: load errors with the file and the fix, warnings, and each
-   job's effective `job_type`, checkout and skip policy.
+   job's effective `job_type`, checkout and when it skips.
 5. **Offer a pull request** with the files and a mapping from the old CI.
 6. **Explain how to turn it on**: connecting the GitHub App, enabling the
    repository, the secrets to create, the exact OIDC subjects to trust.
