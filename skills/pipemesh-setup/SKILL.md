@@ -437,7 +437,8 @@ nothing); tell the user that the check sends them to Pipemesh (the
 instance `npx pipemesh instance` names, pipemesh.io unless set).
 
 It prints the load error, if any, then warnings, then every job's
-effective `job_type` and checkout (`-q` leaves the job
+effective `job_type`, checkout and when it skips (`skip:`, from its
+type) (`-q` leaves the job
 list out), and exits 1 on an error. The loader stops at the first
 error, so fix it and run again until the definition loads. Fix or consciously accept each warning — in
 particular *reads nothing* (a build or deploy with no input runs once and then
