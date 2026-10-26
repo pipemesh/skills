@@ -359,15 +359,16 @@ these changes something: ask first.
   `npx pipemesh runs <workflow>` lists run numbers). If the definition doesn't load, the
   repository shows the load error, naming the file and key. The first
   revision runs every job — no job has a previous success to compare
-  with; later revisions skip what didn't change.
+  with; later revisions reuse builds and skip deploys whose inputs
+  didn't change (tasks and workflow jobs run every time).
 - **A job that fails on a missing file** ("No such file or directory",
   a Dockerfile `COPY` "not found", a tool that can't find its config)
   most likely reads something its `checkout:` leaves out: the checkout
   is enforced. Add the path to the job's `checkout:` (or use `true`)
   and push again. The job's Rules tab on the board shows its effective
-  job type, checkout and skip, and where each came from (for a workflow
-  or pipeline job, also the artifacts its fingerprint reads and what
-  `fingerprint:` narrowed). A workflow or pipeline job takes no
+  job type and checkout, and where each came from (for a workflow or
+  pipeline job, also the artifacts its body reaches, and for a pipeline
+  job what its `fingerprint:` watches). A workflow or pipeline job takes no
   `checkout:`: fix the body's job that reads the file.
 - **A job that consumes an expired artifact** fails before its script:
   "consumes DIST: build/dist expired on <date> — re-run build at

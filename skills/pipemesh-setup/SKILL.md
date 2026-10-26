@@ -16,9 +16,9 @@ declares what it runs in one file, `pipemesh.yaml`, at its root:
   schedules, pushes, manual runs.
 
 Every job says what it is (`job_type:` — `build`, `deploy`, `task`,
-`workflow` or `pipeline`; no `job_type:` means `task`) and what it
-reads (`checkout:`). The job type sets the job's defaults: what it
-checks out and when it may skip. Every structure that stands on its own
+`workflow` or `pipeline`; a job without one is a load error) and what
+it reads (`checkout:`). The job type decides when the job runs and
+what it checks out by default. Every structure that stands on its own
 — a root definition, an included file, a component — says its shape
 with `type:` (`job`, `workflow`, `pipeline`, `component`), and
 Pipemesh checks it against where the structure is used.
@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.22.0;
+**Before Step 1, check this skill is current** (it is version 0.23.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.22.0
+npx pipemesh@latest version --skill=0.23.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -159,13 +159,17 @@ library: workflows only (checks + release on tag).
 Then give each job its `job_type:` (decisions.md → *Choosing each
 job's job_type*):
 
-| The job… | `job_type:` | checks out by default | skips by default |
+| The job… | `job_type:` | when it runs | `checkout:` |
 | --- | --- | --- | --- |
-| reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | everything (`true`) | `reused`: reuses an earlier run with the same inputs |
-| ships what it consumes to an environment — **pipelines only** | `deploy` | nothing | `unchanged`: runs when what it ships changed |
-| must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` (also: no `job_type:`) | nothing | `never` |
-| runs a body (a CI suite) as one node and waits for it | `workflow` | its jobs' checkouts | its jobs': `reused` if all are builds |
-| hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | its jobs' checkouts (`fingerprint:` narrows them) | `unchanged` |
+| reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | reuses an earlier pass with the same fingerprint (*reused*); runs when none matches | `true` by default |
+| ships what it consumes to an environment — **pipelines only** | `deploy` | skips when its fingerprint matches its last success (*no changes*); after a failed or cancelled run, runs in full until one succeeds | `false` by default |
+| must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` | every time | `false` by default |
+| runs a body (a CI suite) as one node and waits for it | `workflow` | every time; the builds in its body reuse what they can | not allowed |
+| hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | without `fingerprint:`, every revision; with it, when something it names changes | not allowed (`fingerprint.checkout` names files) |
+
+Nothing defaults: a job without `job_type:` is a load error naming the
+first untyped job. `skip:` is gone and a load error on any job — pick
+the job type instead. A job that must run every time is a `task`.
 
 A deploy in a workflow is a load error: a pull-request preview or a
 manual hotfix deploy is a `task` there, and isn't tracked as a
@@ -243,13 +247,14 @@ The rules that most often go wrong — they differ from other CI systems:
    trigger; one per repository, registered as `pipeline`). Pull
    requests, tags, schedules and manual runs are workflows. Pushes to
    other branches start nothing — ask when the old CI deploys from one.
-3. **Every job has a `job_type:`; write it on every job**, even a task.
-   The job type sets the defaults in the table above; override one on
-   the job when it's wrong for that job (a `job_type: task` with
-   `skip: reused`, a `job_type: build` whose `checkout:` lists
-   `services/orders` and `libs`). Deploys and child pipelines exist
-   only in the pipeline; never put `skip: unchanged` in a workflow body.
-   `kind:` is the old name and a load error.
+3. **Every job has a `job_type:`; write it on every job**, even a task
+   (without one the definition doesn't load). The job type decides when
+   the job runs (the table above); there is no `skip:` to override it.
+   Override the checkout on the job when the default is wrong for it (a
+   `job_type: build` whose `checkout:` lists `services/orders` and
+   `libs`). A build that must run every time is really a `task`.
+   Deploys and child pipelines exist only in the pipeline. `kind:` is
+   the old name and a load error.
 4. **A structure that stands alone says its shape with `type:`** —
    `type: pipeline` on the pipeline's root definition, `type: workflow`
    or `type: pipeline` at the top of every `.pipemesh/*.yaml` body,
@@ -288,9 +293,9 @@ The rules that most often go wrong — they differ from other CI systems:
    (`deploy/`, `charts/app`) and gets the artifact through `consumes:`.
    A task that only reads git history or the commit checks out nothing
    (history stays complete, so `git log` and `git merge-base` work).
-   The checkout is also the job's fingerprint: a `reused`/`unchanged`
-   job runs again only when a file it checks out, or something it
-   consumes, changed. Files named by `${checksum:…}` in the cache key
+   The checkout is also the job's fingerprint: a build or deploy runs
+   again only when a file it checks out, or something it consumes,
+   changed (a task runs every time). Files named by `${checksum:…}` in the cache key
    and the directories of images Pipemesh builds (`build:`) are added for you. An empty list, a list
    holding only `"**"`, and a list of exclusions alone are load errors
    (write `false` / `true` / start with `"**"`).
@@ -333,9 +338,10 @@ The rules that most often go wrong — they differ from other CI systems:
    enforce it. A suite that runs as one node is `job_type: workflow`
    with `body:` (a `type: workflow` body); one pipeline per service is
    `job_type: pipeline` with `body:` (a `type: pipeline` body) and
-   `variables:`. It reads what its body reads; with a body shared by
-   every service, `fingerprint:` narrows it to the service's own
-   fingerprint artifact or directories.
+   `variables:`. Without `fingerprint:` it hands every revision to its
+   child; with `fingerprint:` it holds a revision until something it
+   names changes — the service's own fingerprint artifact
+   (`fingerprint.artifacts`) or directories (`fingerprint.checkout`).
 9. **Images you deploy are built and pushed in the script**, then
    recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
    and deployed by digest. An `oci` entry with `build:` is only for CI
@@ -428,13 +434,14 @@ nothing); tell the user that the check sends them to Pipemesh (the
 instance `npx pipemesh instance` names, pipemesh.io unless set).
 
 It prints the load error, if any, then warnings, then every job's
-effective `job_type`, checkout and skip policy (`-q` leaves the job
+effective `job_type` and checkout (`-q` leaves the job
 list out), and exits 1 on an error. The loader stops at the first
 error, so fix it and run again until the definition loads. Fix or consciously accept each warning — in
-particular *reads nothing* (the job runs once and then skips every
-revision: give it a checkout or a consume, or `skip: never`; for a
-`job_type: workflow` or `pipeline` job, fix its body's jobs, since it
-takes neither key). Read the
+particular *reads nothing* (a build or deploy with no input runs once and then
+skips every revision: list what it reads in `checkout:`, or make it a
+`job_type: task`; a `job_type: pipeline` job whose `fingerprint:`
+names nothing: name what it watches in `fingerprint:`, or leave
+`fingerprint:` out to hand every revision over). Read the
 job list against the inventory: each build checks out what it
 compiles, each deploy what it runs, each task what it needs.
 
@@ -465,7 +472,7 @@ style throughout.
 **Show it first.** `npx pipemesh preview` sends what `check` sends and
 returns a link: the board this definition will draw and, when the
 repository is already on Pipemesh, what it changes — jobs added,
-removed or changed, and how (checkout, skip, needs, and whether what a
+removed or changed, and how (job type, checkout, needs, and whether what a
 job runs changed, so it runs again). It needs sign-in
 (`npx pipemesh login`; the user approves the code in the browser).
 Anyone with the link can open it for 7 days, and it shows the job

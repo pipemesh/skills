@@ -41,7 +41,7 @@ pipeline:
     - production
   jobs:
     build:
-      job_type: build                   # skip: reused — a revert or a docs-only commit reuses the stored bundle
+      job_type: build                   # reuses: a revert or a docs-only commit reuses the stored bundle
       stage: build
       image: node:22-bookworm
       checkout:                         # everything npm ci/test/build read
@@ -60,7 +60,7 @@ pipeline:
           expire: 30d
 
     deploy_staging:
-      job_type: deploy                  # skip: unchanged — runs when dist or deploy/ is new to it
+      job_type: deploy                  # runs when dist or deploy/ is new to it, else no changes
       production: false
       stage: staging
       image: node:22-bookworm
@@ -73,7 +73,7 @@ pipeline:
       script: ./deploy/deploy.sh staging dist
 
     smoke:
-      job_type: task                    # skip: never — it checks the live site every time
+      job_type: task                    # runs every time: it checks the live site
       stage: staging
       needs:
         - deploy_staging
@@ -290,12 +290,10 @@ pipemesh:
 ```
 
 The board shows `ci` as one card that expands into the body's jobs.
-A `job_type: workflow` job reads what its jobs read: their checkouts
-combined. When every job of the body is a build it reuses as a whole
-(entries included) on a revision none of them reads; one task in the
-body (a commit-message lint, a merge-base check) makes it run every
-time. Jobs inside a workflow body can't use `skip: unchanged`, and a
-deploy can't live there. The one `type: workflow` body serves both the
+A `job_type: workflow` job runs on every revision; the jobs in its
+body reuse what they can: a build whose fingerprint matches an earlier
+pass hands up that pass's artifacts (`ci/build/dist` above), and a
+task runs every time. A deploy can't live in a workflow body. The one `type: workflow` body serves both the
 `ci` job and the `checks` registration.
 
 ## 4. Library / CLI release on a tag
@@ -522,7 +520,6 @@ dispatch:
       fingerprint:
         artifacts:                             # hands the revision over only when this changed
           - graph/orders
-        checkout: false
       body: !ref service
       variables:
         SERVICE: orders
@@ -532,7 +529,6 @@ dispatch:
       fingerprint:
         artifacts:
           - graph/payments
-        checkout: false
       body: !ref service
       variables:
         SERVICE: payments
@@ -621,7 +617,7 @@ Per build tool (full guides: pipemesh.io/docs/nx-monorepo,
 | Nx | `nx/fingerprint@1` (`with:` image, install, with_target, targets, extra) | Nx Cloud: `NX_CLOUD_ACCESS_TOKEN` under `secrets:` on the service build; workspace default access read-only | a `task`: `npx nx affected -t test build --base=$(git merge-base origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME HEAD)` |
 | Turborepo | `turbo/fingerprint@1` (`with:` image, install, turbo, deployables, extra) | `setup:` steps `vercel/turborepo-token@1` then `turbo/remote-cache@1` (keyless via OIDC), or `turbo/remote-cache@1` with a token secret for a self-hosted cache | a `task`: `TURBO_SCM_BASE=<merge base> pnpm turbo run build test --affected` |
 | Bazel | `bazel/fingerprint@1` (`with:` image, bazel, targets, extra), deployable targets tagged `deployable` | a `setup:` step `bazel/remote-cache@1`, and `BUILDBUDDY_API_KEY` under `secrets:` | a `task`: rdeps query of the diff against the merge base |
-| none (plain dirs) | no graph job: each `job_type: pipeline` job's `checkout:` lists the service's directories (`services/orders`, `libs/shared`) instead of consuming a fingerprint | your tool's own | builds with narrowed checkouts (`services/orders`, `libs/shared`, `package.json`, …) |
+| none (plain dirs) | no graph job: each `job_type: pipeline` job's `fingerprint.checkout` lists the service's directories (`services/orders`, `libs/shared`) instead of naming a fingerprint artifact | your tool's own | builds with narrowed checkouts (`services/orders`, `libs/shared`, `package.json`, …) |
 
 The deploy-only-on-new-artifact behaviour needs a **reproducible
 build** (same inputs → same bytes): esbuild, Bazel deploy jars and

@@ -5,7 +5,7 @@ Two strategies, and they mix per job. Either way the job gets a
 
 - **Port** a job: its steps become a Pipemesh job's `script:` on
   Pipemesh runners. You get the full model — `produces:`/`consumes:`
-  by digest, `skip: reused` reuse, `cache:`, OIDC identity, and an
+  by digest, build reuse, `cache:`, OIDC identity, and an
   enforced `checkout:`.
 - **Run it on Actions**: keep the Actions workflow as the compute and
   give the Pipemesh job `github_actions: <workflow file>`, which
@@ -47,7 +47,7 @@ job.
 
 | Actions | Pipemesh |
 | --- | --- |
-| `jobs.<id>` | a job with a `job_type:` (decisions.md → *Choosing each job's job_type*); ids become lowercase `[a-z0-9_-]` (`deploy-staging` → `deploy_staging` or keep the hyphen) |
+| `jobs.<id>` | a job with an explicit `job_type:` — every converted job gets one, since a job without it doesn't load (decisions.md → *Choosing each job's job_type*); ids become lowercase `[a-z0-9_-]` (`deploy-staging` → `deploy_staging` or keep the hyphen) |
 | `needs:` | `needs:` — plus `consumes:` where an output is passed |
 | `runs-on: ubuntu-*` | `runner: linux-amd64-small` (x86-64, like GitHub's), or nothing for the arm64 default (`linux-arm64-small`) when the job's tools have arm64 builds — prefer arm64 for new work, keep amd64 for what downloads x86-64 binaries or must ship amd64 natively. Pick `image:` for the toolchain. More memory or cores: the `-medium` size |
 | `runs-on: ubuntu-*-arm` | nothing (the arm64 default) |
