@@ -145,7 +145,8 @@ the assumption at the top of the summary.
 job it is always `job`). Every job has one: a job without it is a load
 error, and nothing defaults to `task`. The job type decides when the
 job runs, what it checks out by default, and where it may appear;
-there is no `skip:` (it is a load error). Decide it from what the
+`skip:` is deprecated and ignored (`npx pipemesh check` warns), so
+never write it. Decide it from what the
 job's commands do, not from its name:
 
 | What the job does | `job_type:` | when it runs | `checkout:` | where |
@@ -188,7 +189,7 @@ Judgment calls:
   lists `deploy` (or `charts/app` and `scripts/deploy.sh`), plus
   `consumes:` for what it ships. A deploy that checks out the whole
   repository redeploys on every commit.
-- **There is no `skip:` to override the job type.** A costly check
+- **Nothing overrides the job type** (`skip:` is ignored). A costly check
   whose inputs are all checked out is a `build`, so it reuses; a job
   that must run every time is a `task`.
 - **A build or deploy that reads nothing** (no checkout, no consumes,

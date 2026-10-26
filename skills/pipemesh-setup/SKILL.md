@@ -168,8 +168,10 @@ job's job_type*):
 | hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | without `fingerprint:`, every revision; with it, when something it names changes | not allowed (`fingerprint.checkout` names files) |
 
 Nothing defaults: a job without `job_type:` is a load error naming the
-first untyped job. `skip:` is gone and a load error on any job — pick
-the job type instead. A job that must run every time is a `task`.
+first untyped job. `skip:` is deprecated and ignored: a job that still
+writes it loads, `npx pipemesh check` warns, and the job type decides.
+Never write it — pick the job type instead. A job that must run every
+time is a `task`.
 
 A deploy in a workflow is a load error: a pull-request preview or a
 manual hotfix deploy is a `task` there, and isn't tracked as a
@@ -249,7 +251,8 @@ The rules that most often go wrong — they differ from other CI systems:
    other branches start nothing — ask when the old CI deploys from one.
 3. **Every job has a `job_type:`; write it on every job**, even a task
    (without one the definition doesn't load). The job type decides when
-   the job runs (the table above); there is no `skip:` to override it.
+   the job runs (the table above); `skip:` is deprecated and ignored, so
+   never write it.
    Override the checkout on the job when the default is wrong for it (a
    `job_type: build` whose `checkout:` lists `services/orders` and
    `libs`). A build that must run every time is really a `task`.

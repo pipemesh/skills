@@ -287,8 +287,8 @@ each. Keys Pipemesh **removed**: `kind:` (now `job_type:`), `paths:`,
 
 Every job has a job type; write `job_type:` on every job. Nothing
 defaults: a job without `job_type:` is a load error naming the first
-untyped job. The job type decides when the job runs; there is no
-`skip:` (a load error on any job).
+untyped job. The job type decides when the job runs; `skip:` is
+deprecated and ignored (When a job runs, below).
 
 | `job_type:` | when it runs | `checkout:` | allowed in | runs |
 | --- | --- | --- | --- | --- |
@@ -397,9 +397,14 @@ checkout:                 # everything but these
 
 ## When a job runs
 
-The job type decides it; `skip:` is gone, and on any job it is a load
-error ("skip: is gone — the job type decides: build reuses, deploy
-compares with its last success, task always runs").
+The job type decides it. `skip:` is deprecated: a job that still
+writes it loads, the key is ignored, the board's Rules tab shows an
+`ignored: skip` row, and `npx pipemesh check` warns
+("<workload>.<job>: skip: is deprecated and ignored — the job type
+decides: build reuses, deploy compares with its last success, task
+always runs; remove it"). The JSON schemas no longer list it, so
+editors flag it. Never write it; remove it when you edit a definition
+that has it.
 
 A build's or deploy's **fingerprint** hashes its definition,
 parameters, the digests of what it consumes, the files it checks out,
@@ -712,7 +717,6 @@ replacement:
 | `trigger:` | as `delegate:` |
 | `paths:` in a mount under a job's `repos:` | `checkout:` |
 | a job without `job_type:` | a load error naming the first untyped job: give every job its `job_type:` (nothing defaults to `task`) |
-| `skip:` on any job | the job type decides: a build reuses, a deploy compares with its last success, a task always runs. A job that must run every time is a `task` |
 | `workload:` on a job | `body:` (`!ref`, `!include` or inline) |
 | `artifacts:` on a job | a `produces:` entry on the job that writes the files, named under `consumes:` by each job that reads them |
 | `github_actions:` with `artifacts:` | a `produces:` file entry (`dist: file`): it imports the run's Actions artifact of the same name |
@@ -723,6 +727,7 @@ replacement:
 | `tags:` (runner labels) | `runner:`, a hosted size or the organization's own runner by name |
 | `rules:` | `checkout:` lists what the job reads, and `job_type:` decides when it runs |
 | `config:` | each name under `variables:` as `NAME: !settings` |
+| `skip:` on a job | deprecated, not rejected: it loads, is ignored and `npx pipemesh check` warns. Remove it; the job type decides (a build reuses, a deploy compares with its last success, a task always runs). A job that must run every time is a `task` |
 | `sources:` | `checkout:` |
 
 ## Editor validation

@@ -299,8 +299,8 @@ first, then its own earlier runs, never another PR's. A run whose
 outputs have expired doesn't match: the job builds again.
 `reuse: trusted` on a build reuses only passes a trusted run made.
 
-Every build reuses, in pipelines and in workflows; `skip:` is gone (a
-load error). A deploy skips when its fingerprint matches its last
+Every build reuses, in pipelines and in workflows; `skip:` is
+deprecated and ignored (`npx pipemesh check` warns), so never write it. A deploy skips when its fingerprint matches its last
 success (*no changes*; pipelines only), and a task runs every time. A
 `job_type: workflow` job always runs; the builds in its body reuse,
 and hand up the reused pass's artifacts.

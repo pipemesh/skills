@@ -27,7 +27,7 @@ can't be connected yet; a repository that moved to GitHub but kept its
 3. **`rules: changes:` becomes `checkout:` + the job's `job_type:`.**
    The job type decides when the job runs (a `build` reuses, a `deploy`
    skips when its fingerprint matches its last success, a `task` always
-   runs); there is no `skip:`. The checkout is what's compared. A job
+   runs); never write `skip:` (deprecated and ignored). The checkout is what's compared. A job
    that must run every time is a `task`. And the comparison base is the job's own last successful
    run (or any earlier build with the same inputs), not the previous
    commit — a failed build can't be skipped past.
