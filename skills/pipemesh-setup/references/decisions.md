@@ -154,7 +154,7 @@ job's commands do, not from its name:
 | compiles, tests, lints, type-checks, builds an image or bundle, computes build-graph fingerprints — reads the source and is hermetic | `build` | reuses an earlier pass with the same fingerprint (*reused*), else runs | `true` by default | pipelines, workflows |
 | signs, packages, converts or scans what it consumes, reading no source | `build` with `checkout: false` | reuses an earlier pass with the same fingerprint (*reused*), else runs | `false` | pipelines, workflows |
 | ships to an environment or to users: deploy what it consumes, migrate, apply infrastructure, release a package from the pipeline | `deploy` | skips when its fingerprint matches its last success (*no changes*); after a failed or cancelled run, runs in full until one succeeds | `false` by default | **pipelines only** |
-| anything that must run every time: smoke tests against a live URL, notifications, checks that read pull-request context (a merge-base diff, `nx affected`, commit-message lint), a PR preview deploy, a tag release in a workflow | `task` | every time | `false` by default | pipelines, workflows |
+| anything that must run every time: smoke tests against a live URL, notifications, checks that read pull-request context (commit-message lint), a PR preview deploy, a tag release in a workflow | `task` | every time | `false` by default | pipelines, workflows |
 | runs a body (a CI suite, the PR checks) as one node and waits for its verdict | `workflow` | every time; each build in its body reuses an earlier pass with the same fingerprint and hands up that pass's artifacts | not allowed | pipelines, workflows |
 | hands the revision to a child pipeline (one per service in a monorepo) | `pipeline` | without `fingerprint:`, every revision; with it, only when something it names changed | not allowed (`fingerprint.checkout` names the files it watches) | **pipelines only** |
 
@@ -170,7 +170,7 @@ Judgment calls:
 - **Tests are builds** when they depend only on the files they check
   out (unit, integration against services started in the script). A
   test that reads something outside the repository and its consumes —
-  a live endpoint, the merge base, the date — is a `task`.
+  a live endpoint, the date — is a `task`.
 - **A test of an artifact** (it consumes the bundle and checks out
   nothing) is a `build` with `checkout: false`: a bundle it already
   tested reuses that run.
