@@ -36,8 +36,9 @@ can't be connected yet; a repository that moved to GitHub but kept its
    (`true`, `false` or a list), and a file left out isn't in the
    workspace. A `build` defaults to the whole tree; a `deploy` or
    `task` to nothing. List
-   what each script reads. History is complete either way, so
-   `git diff`/`git merge-base` work.
+   what each script reads. The clone is one commit deep (GitLab's
+   `GIT_DEPTH: 1`): a script that diffs against history fetches it
+   itself, or, in a monorepo, runs every task on the tool's cache.
 5. **No anchors, `extends:` or hidden `.jobs`.** Reuse a whole job with
    `!ref` (a job kept on its own says `type: job`); vary it with a
    component (`uses:` + `with:`).
@@ -71,7 +72,7 @@ can't be connected yet; a repository that moved to GitHub but kept its
 | `rules: - if: $CI_PIPELINE_SOURCE == "schedule"` | workflow `on: schedule`, `cron:` from the GitLab schedule (UTC) |
 | `rules: - changes:` (`path/**`) | `path` in the `checkout:` of a `build` (reuses while `path` is unchanged) or a `deploy` (skips while unchanged) |
 | `GIT_STRATEGY: none` | `checkout: false` (the default of every job type but `build`) |
-| `GIT_DEPTH:` | nothing: history is always complete |
+| `GIT_DEPTH:` | nothing: the clone is one commit deep; a job that needs history fetches it itself |
 | `rules: - if: $CI_COMMIT_BRANCH =~ /^release/` (other branches) | not supported: only the branch the repository was added with is watched — ask (tags or a manual workflow) |
 | `only:` / `except:` | same mapping as `rules:` |
 | `when: manual` | no per-job manual key. Operators hold promotions into a job from the board ("Disable promotions…"); see onboarding.md → Holding production. For manual one-offs, a workflow with no trigger |

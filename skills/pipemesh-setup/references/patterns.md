@@ -589,20 +589,19 @@ jobs:
 ```
 
 ```yaml
-# .pipemesh/checks.yaml — PR checks: only what the change can affect
+# .pipemesh/checks.yaml — PR checks: every task, on the tool's cache
 type: workflow
 stages:
   - test
 jobs:
-  affected:
-    job_type: task                             # reads the merge base, so it runs on every PR revision
+  checks:
+    job_type: build                            # the same tree as an earlier pass reuses it
     stage: test
-    checkout: true                             # the project graph spans the tree; history stays complete
+    checkout: true                             # the project graph spans the tree
     image: node:24-bookworm
     script: |
       npm ci --no-audit --no-fund
-      base=$(git merge-base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" HEAD)
-      NX_DAEMON=false npx nx affected -t test build --base="$base" --head=HEAD
+      NX_DAEMON=false npx nx run-many -t test build   # unchanged projects are Nx Cloud hits (read-only without a token)
 ```
 
 The service body is `type: pipeline` because `job_type: pipeline` jobs
@@ -614,9 +613,9 @@ Per build tool (full guides: pipemesh.io/docs/nx-monorepo,
 
 | Tool | Fingerprint component | Remote cache | PR checks |
 | --- | --- | --- | --- |
-| Nx | `nx/fingerprint@1` (`with:` image, install, with_target, targets, extra) | Nx Cloud: `NX_CLOUD_ACCESS_TOKEN` under `secrets:` on the service build; workspace default access read-only | a `task`: `npx nx affected -t test build --base=$(git merge-base origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME HEAD)` |
-| Turborepo | `turbo/fingerprint@1` (`with:` image, install, turbo, deployables, extra) | `setup:` steps `vercel/turborepo-token@1` then `turbo/remote-cache@1` (keyless via OIDC), or `turbo/remote-cache@1` with a token secret for a self-hosted cache | a `task`: `TURBO_SCM_BASE=<merge base> pnpm turbo run build test --affected` |
-| Bazel | `bazel/fingerprint@1` (`with:` image, bazel, targets, extra), deployable targets tagged `deployable` | a `setup:` step `bazel/remote-cache@1`, and `BUILDBUDDY_API_KEY` under `secrets:` | a `task`: rdeps query of the diff against the merge base |
+| Nx | `nx/fingerprint@1` (`with:` image, install, with_target, targets, extra) | Nx Cloud: `NX_CLOUD_ACCESS_TOKEN` under `secrets:` on the service build; workspace default access read-only | a `build`: `npx nx run-many -t test build`; Nx Cloud is read-only without a token, so unchanged projects are cache hits |
+| Turborepo | `turbo/fingerprint@1` (`with:` image, install, turbo, deployables, extra) | `setup:` steps `vercel/turborepo-token@1` then `turbo/remote-cache@1` (keyless via OIDC), or `turbo/remote-cache@1` with a token secret for a self-hosted cache | a `build`: `pnpm turbo run build test`, no remote cache (the token could write) |
+| Bazel | `bazel/fingerprint@1` (`with:` image, bazel, targets, extra), deployable targets tagged `deployable` | a `setup:` step `bazel/remote-cache@1`, and `BUILDBUDDY_API_KEY` under `secrets:` | a `build`: `bazel test //...`, no remote cache (PR runs get no secret) |
 | none (plain dirs) | no graph job: each `job_type: pipeline` job's `fingerprint.checkout` lists the service's directories (`services/orders`, `libs/shared`) instead of naming a fingerprint artifact | your tool's own | builds with narrowed checkouts (`services/orders`, `libs/shared`, `package.json`, …) |
 
 The deploy-only-on-new-artifact behaviour needs a **reproducible

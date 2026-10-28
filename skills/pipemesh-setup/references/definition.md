@@ -312,8 +312,8 @@ deprecated and ignored (When a job runs, below).
   says `production: true` or `production: false`.
 - **`task`** is anything else; it runs every time a revision or run
   reaches it (smoke tests, notifications, checks that read pull-request
-  context such as a merge-base diff). A job that must run every time is
-  a task.
+  context such as the commit message). A job that must run every time
+  is a task.
 - The checkout default can be overridden on the job (a `job_type: build`
   whose `checkout:` lists `services/orders` and `libs`); when the job
   runs cannot. The board's Rules tab shows each effective value
@@ -377,9 +377,11 @@ checkout:                 # everything but these
   Markdown file. `"**"` stands in a list only beside an exclusion; a list
   of exclusions alone is a load error. Quote them in YAML (`- "!docs"`):
   a bare `!` starts a tag.
-- **History is always complete**: the fetch is never shallow, so
-  `git log`, `git diff` between commits and `git merge-base` work even
-  with `checkout: false`.
+- **One commit deep**: the fetch holds the job's commit only, even with
+  `checkout: false`. A job that needs history fetches it itself:
+  `git fetch --filter=blob:none --unshallow origin
+  "+refs/heads/$t:refs/remotes/origin/$t"` (history without file
+  contents, a few MB), then `git merge-base`.
 - **It is the job's fingerprint input**: a build or deploy runs again
   only when a file it checks out changed (or a consumed digest, its
   definition, a secret or config version). A `true` checkout makes

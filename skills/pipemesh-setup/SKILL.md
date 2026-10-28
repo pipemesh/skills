@@ -163,7 +163,7 @@ job's job_type*):
 | --- | --- | --- | --- |
 | reads the source and is hermetic: compile, test, lint, image build, a build-graph fingerprint | `build` | reuses an earlier pass with the same fingerprint (*reused*); runs when none matches | `true` by default |
 | ships what it consumes to an environment — **pipelines only** | `deploy` | skips when its fingerprint matches its last success (*no changes*); after a failed or cancelled run, runs in full until one succeeds | `false` by default |
-| must run every time: smoke tests, notifications, checks that read the pull request's merge base | `task` | every time | `false` by default |
+| must run every time: smoke tests, notifications, checks that read pull-request context | `task` | every time | `false` by default |
 | runs a body (a CI suite) as one node and waits for it | `workflow` | every time; the builds in its body reuse what they can | not allowed |
 | hands the revision to a child pipeline (one per service) — **pipelines only** | `pipeline` | without `fingerprint:`, every revision; with it, when something it names changes | not allowed (`fingerprint.checkout` names files) |
 
@@ -294,8 +294,11 @@ The rules that most often go wrong — they differ from other CI systems:
    the tree (one service of a monorepo: its directory, the shared
    libraries, the root config). A deploy lists its deploy directory
    (`deploy/`, `charts/app`) and gets the artifact through `consumes:`.
-   A task that only reads git history or the commit checks out nothing
-   (history stays complete, so `git log` and `git merge-base` work).
+   A task that only reads the commit checks out nothing (`git log -1`
+   works). The clone is one commit deep: a job that needs history
+   fetches it itself (`git fetch --filter=blob:none --unshallow origin
+   "+refs/heads/$t:refs/remotes/origin/$t"`, a few MB) before
+   `git merge-base`.
    The checkout is also the job's fingerprint: a build or deploy runs
    again only when a file it checks out, or something it consumes,
    changed (a task runs every time). Files named by `${checksum:…}` in the cache key
