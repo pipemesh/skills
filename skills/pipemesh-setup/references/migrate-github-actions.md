@@ -87,7 +87,7 @@ job.
 | `docker/setup-buildx-action`, `setup-qemu-action` | nothing on the default job image (buildx included) |
 | `docker/build-push-action` | `docker build` + `docker push` in the script, then `pipemesh produce oci <key> --ref <repo> --digest <sha256>` (artifacts-and-caching.md → Images). Hosted runners are arm64: GitHub's `ubuntu-latest` built amd64 — check the target |
 | `azure/setup-helm`, `azure/setup-kubectl` | install the pinned binary in the script, or use an image that has it |
-| `google-github-actions/auth` (WIF) | a token from `$PIPEMESH_ID_TOKEN_REQUEST_URL` with the pool's audience, exchanged with `gcloud iam workload-identity-pools create-cred-config` — or a key in `secrets:` |
+| `google-github-actions/auth` (WIF) | an `id_tokens:` token for the pool's audience, exchanged with `gcloud iam workload-identity-pools create-cred-config` — or a key in `secrets:` |
 | `hashicorp/setup-terraform` | install Terraform in the script or use a Debian-based image with it |
 | `slackapi/slack-github-action` (webhook) | a `setup:` step `uses: slack/message@1` `with:` `text:`, and `SLACK_WEBHOOK` under `secrets:` — or a `curl` |
 | `codecov/codecov-action` | a `setup:` step `uses: codecov/upload@1`, and `CODECOV_TOKEN` under `secrets:` |

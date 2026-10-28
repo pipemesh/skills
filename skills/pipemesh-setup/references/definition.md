@@ -634,14 +634,18 @@ job:
 - No inheritance or overriding. To vary behaviour, add a param.
 - `setup:` steps must be script-only components; they run before
   `script`.
+- A component may declare `id_tokens:` in its `job:` (params
+  interpolate): the identity tokens it needs, which join the job's. It
+  reads its token from that variable. A name the job or another component
+  also declares must name the same audiences.
 
 Registry components (`uses: <stream>/<name>@<major>`, resolved from
 `ghcr.io/pipemesh/components`, pinned by digest):
 
 | component | params (required **bold**) | what it does |
 | --- | --- | --- |
-| `aws/role@1` | **arn**, **region**, audience | OIDC → assumes an AWS role; every later AWS call uses it (setup step) |
-| `vercel/turborepo-token@1` | **team**, policy_id, audience | OIDC → Vercel → exports `TURBO_TOKEN` (setup step) |
+| `aws/role@1` | **arn**, **region**, audience | declares an identity token for `audience` (`AWS_ROLE_ID_TOKEN`) → assumes an AWS role; every later AWS call uses it (setup step) |
+| `vercel/turborepo-token@1` | **team**, policy_id | declares an identity token for `https://vercel.com/<team>` (`VERCEL_ID_TOKEN`) → Vercel → exports `TURBO_TOKEN` (setup step) |
 | `turbo/remote-cache@1` | **team**, api, token_var | points turbo at a remote cache; read-only on PRs (setup step) |
 | `turbo/fingerprint@1` | **image**, install, turbo, task, deployables, extra, out | one fingerprint per Turborepo package (a `build` job; checkout `true`) |
 | `nx/fingerprint@1` | **image**, install, with_target, targets, extra, out | one fingerprint per Nx project (a `build` job; checkout `true`) |
