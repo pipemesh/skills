@@ -411,10 +411,12 @@ Every job has: `CI_COMMIT_SHA`, `CI_COMMIT_SHORT_SHA` (8 chars),
 (shell-safe names), and `PIPEMESH_<CONSUME_PATH>` per consumed entry.
 `$PIPEMESH_WORKSPACE` is the workspace root (a shell variable — export
 it if a child process needs it); it holds the job's checkout and what
-it consumes, nothing else. On pipemesh.io every job also has
-`PIPEMESH_ID_TOKEN_REQUEST_URL` and `PIPEMESH_ID_TOKEN_REQUEST_TOKEN`
-for requesting OIDC identity tokens (what `aws/role@1` uses), and each
-token its `id_tokens:` declares, under its own name.
+it consumes, nothing else. Every job has `PIPEMESH_JOB_TOKEN`, its own
+credential for Pipemesh. On pipemesh.io it also has
+`PIPEMESH_ID_TOKEN_REQUEST_URL`: `POST` there with
+`Authorization: Bearer $PIPEMESH_JOB_TOKEN` and `?audience=<aud>` for an
+OIDC identity token. Prefer declaring tokens with `id_tokens:` (each
+arrives under its own name, as `aws/role@1` declares its own).
 
 By trigger:
 
