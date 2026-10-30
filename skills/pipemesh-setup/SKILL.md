@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.26.0;
+**Before Step 1, check this skill is current** (it is version 0.27.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.26.0
+npx pipemesh@latest version --skill=0.27.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -547,7 +547,7 @@ CLI says it doesn't know them.
 | --- | --- |
 | What would my edit change? | edit, `npx pipemesh check`, then `npx pipemesh preview` (`--watch` while iterating) — give the user the link before committing |
 | How is it doing? | `npx pipemesh status` — each job at the latest revision, what each deploy has deployed |
-| Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` (or `--rev=<n>`; `--timeout=<minutes>`, default 60) — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (an approval or a hold), 4 timeout |
+| Did my merge go through? | `npx pipemesh watch --sha=<merge commit>` (or `--rev=<n>`; `--timeout=<minutes>`, default 60) — waits for the commit's revision and follows it; exit 0 settled, 1 failed, 3 waiting for a person (a hold), 4 timeout |
 | What ran in a workflow? | `npx pipemesh runs [workflow]` — the latest runs and their numbers (`--limit=<n>`) |
 | Why did a job fail? | `npx pipemesh logs <job>` (`--rev=<n>` for an older run, `--follow` while it runs); a workflow run's job: `npx pipemesh@latest logs <workflow> --run=<n> [--job=<job>]` — every attempt, oldest first; `--job` may be left out when the workflow has one job; `npx pipemesh runs <workflow>` lists run numbers. A hosted job whose machine was reclaimed runs again, up to three attempts (a deploy never retries on its own); `npx pipemesh@latest logs <job>` and the board's job panel say why Pipemesh failed an earlier attempt ("the job's node was lost") |
 | What did a job make, and until when? | `npx pipemesh@latest artifacts <job> [--rev=<n>]` (a pipeline job) or `npx pipemesh@latest artifacts <workflow> --run=<n> [--job=<job>]` — what it produced and consumed, each with its expiry ("expires 2026-11-18", "kept: one of the job's two latest runs", "never expires", "expired 2026-10-03"), and its reports with their state |
@@ -556,7 +556,7 @@ CLI says it doesn't know them.
 | What do I put in a cloud trust? | `npx pipemesh identity` — the issuer and each job's subject (never compose one) |
 | Anything no command answers | `npx pipemesh@latest api [method] <path>` (`/api/…`; `--data=<json>`, `--data=@file` or `--data=@-` for a body) — the CLI makes the call signed in as the user and prints the answer (JSON indented, tokens masked). Only GET without asking: ask the user before any other method |
 | What went to production today? | `npx pipemesh deployments --since=today` (`--all` across the user's repositories) |
-| Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, waiting for approval, failed, rolled back, or not yet; exit 0 when every one has it |
+| Was the fix deployed? | `npx pipemesh deployed '#<PR>'` (or a commit or branch) — per production deploy: deployed (since when), unchanged (nothing it deploys changed, so production already matches), deploying, failed, rolled back, or not yet; exit 0 when every one has it |
 
 "Production" is the deploys that say `production: true`. A commit counts as deployed
 once a production deploy ran a revision that contains it: a push of
@@ -599,7 +599,6 @@ Acting on it changes something, so ask the user first, every time
 | To | Command |
 | --- | --- |
 | Start a manual workflow | `npx pipemesh run <workflow>` |
-| Approve or reject a waiting deploy | `npx pipemesh approve <job>` / `reject <job>` (`--rev=<n>` when several wait) |
 | Stop new revisions reaching a job | `npx pipemesh hold <job> --reason="…"`; `release <job>` lets them in |
 | Run a failed job again | `npx pipemesh rerun <job>`; a workflow run's failed jobs: `rerun <workflow> --run=<n>` (`--job=<job>` for one) |
 | Cancel | `npx pipemesh cancel <job>` (or `<workflow> --run=<n>`); add `--yes` only once the user said so |
