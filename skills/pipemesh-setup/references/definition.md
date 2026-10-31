@@ -1,6 +1,6 @@
 # Mesh definition: pipemesh.yaml
 
-Condensed from pipemesh.io/docs/mesh-definition and /docs/release-flow.
+Condensed from pipemesh.io/docs/definition and /docs/release-flow.
 When something here and the live docs disagree, the docs win.
 
 Contents: file layout · types · registration · triggers & inputs ·
