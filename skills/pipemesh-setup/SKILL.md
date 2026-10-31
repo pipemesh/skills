@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.27.0;
+**Before Step 1, check this skill is current** (it is version 0.28.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.27.0
+npx pipemesh@latest version --skill=0.28.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -463,7 +463,7 @@ The check does not flag these; look for them yourself:
 
 It needs Node 20 or newer and network access. Without them, check by
 hand against the rules in step 4 and definition.md. The same loader
-runs again when the file reaches its mesh's branch,
+runs again when the file reaches the repository's branch,
 where Pipemesh reports any load error with the file and key.
 
 Then re-read the result against the inventory: every row is covered or
@@ -509,14 +509,14 @@ unless the user chose to change them in step 3.
 ## Step 8 — Explain how to turn it on
 
 Walk the user through turning it on in Pipemesh — sign in, connect the
-GitHub App (every repository it reaches is a mesh, inactive until its
+GitHub App (every repository it reaches shows up, inactive until its
 `pipemesh.yaml` lands; there is nothing to add or enable), add the secrets and
 config this definition names, set up cloud trust for the exact job
 identities it uses, and what to watch after merging. Follow
 `references/onboarding.md`, and tailor it: list the real secret names,
 name the jobs that need cloud access, and skip sections that don't
 apply. Never compose an OIDC subject: they're written with ids. Once
-the definition is merged and its mesh is active, read them with
+the definition is merged and the repository is active, read them with
 `npx pipemesh identity` (or offer to), and give the user the issuer and
 the exact subject lines of those jobs for their trust policies.
 
@@ -527,7 +527,7 @@ page), `npx pipemesh repos` to see
 whether the repository is connected, and `npx pipemesh connect` if it
 isn't (the user installs the GitHub App in the page it opens;
 `--no-wait` returns at once). Merging the pull request is what turns it
-on: `npx pipemesh@latest mesh` shows the mesh go from inactive to
+on: `npx pipemesh@latest repo` shows the repository go from inactive to
 active. Every command takes `--json`.
 `npx pipemesh whoami` says who the CLI is signed in as. Running
 `npx pipemesh login` again replaces the token it keeps, including a
@@ -538,7 +538,7 @@ fails, it still forgets it and says where to revoke it.
 
 ## After it's on: following it, and what went out
 
-Once its mesh is active, answer questions about it with the CLI
+Once the repository is active, answer questions about it with the CLI
 (add `--json` to read the answer; public repositories need no sign-in).
 The commands written `npx pipemesh@latest …` below are new: an older
 CLI says it doesn't know them.
