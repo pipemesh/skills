@@ -482,8 +482,8 @@ jobs:
   run. `- uses: pipemesh/produce@v1` emits an image entry.
 - A `github_actions:` job can't also have `script`, `setup`, `uses`,
   `image`, `image_from`, `services`, `runner`, `dockerd`, `secrets`,
-  `id_tokens`, `cache`, or an `oci` entry with `build:` — the Actions
-  run is the execution. Secrets stay in GitHub.
+  `id_tokens`, `cache`, or an `oci` entry with `build:` or `verify:` —
+  the Actions run is the execution. Secrets stay in GitHub.
 - The Pipemesh GitHub App needs **Actions: read and write**; an
   organization that installed it earlier must accept the permission.
 
@@ -649,7 +649,11 @@ graph:
 
 A pull request that changes `ci/` builds its own; otherwise PR jobs run
 in the default branch's image. The image still needs bash, git, curl
-and tar.
+and tar. An image without a Dockerfile (Jib, ko) or copied from
+upstream (`crane copy`) is an `oci` key without `build:` that the
+script pushes to `$(pipemesh place <key>)` after `pipemesh login`;
+`image_from:` runs in it the same way (artifacts-and-caching.md →
+Images, case 3).
 
 ## 9. Matrix: per-region lanes vs a CI-style matrix
 

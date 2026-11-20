@@ -85,7 +85,9 @@ job.
 | `aws-actions/amazon-ecr-login` | `aws ecr get-login-password … \| docker login …` in the script |
 | `docker/login-action` | `docker login` in the script with a secret |
 | `docker/setup-buildx-action`, `setup-qemu-action` | nothing on the default job image (buildx included) |
-| `docker/build-push-action` | `docker build` + `docker push` in the script, then `pipemesh produce oci <key> --ref <repo> --digest <sha256>` (artifacts-and-caching.md → Images). Hosted runners are arm64: GitHub's `ubuntu-latest` built amd64 — check the target |
+| `docker/build-push-action` | `docker build` + `docker push` in the script, then `pipemesh produce oci <key> --ref <repo> --digest <sha256>` (artifacts-and-caching.md → Images). Hosted runners are arm64: GitHub's `ubuntu-latest` built amd64 — check the target. An image only later jobs use (tests, `container:`) goes to Pipemesh's registry instead: `dockerd: true`, `pipemesh login`, then `docker buildx build --push -t "$(pipemesh place <key>)" .` |
+| `./gradlew jib` / `mvn jib:build` | the same command in a JDK `image:`. To your registry: `crane auth login` first (Jib reads that login; the digest check needs crane or docker), then `pipemesh produce oci <key> --ref <repo> --digest "$(cat build/jib-image.digest)"`. Only for later jobs: `pipemesh login`, then `-Djib.to.image="$(pipemesh place <key>)"`, nothing else |
+| `crane copy`, `skopeo copy`, `docker pull` + `docker push` mirroring an upstream image | `pipemesh login`, then `crane copy "$UPSTREAM" "$(pipemesh place <key>)"` under an `oci` key; later jobs run in it with `image_from:` |
 | `azure/setup-helm`, `azure/setup-kubectl` | install the pinned binary in the script, or use an image that has it |
 | `google-github-actions/auth` (WIF) | an `id_tokens:` token for the pool's audience, exchanged with `gcloud iam workload-identity-pools create-cred-config` — or a key in `secrets:` |
 | `hashicorp/setup-terraform` | install Terraform in the script or use a Debian-based image with it |

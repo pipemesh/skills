@@ -4,7 +4,7 @@ Three different mechanisms, often confused:
 
 | Mechanism | Holds | Scope | Use it for |
 | --- | --- | --- | --- |
-| **Entries** (`produces:` / `consumes:`) | the build's real outputs: files, images, packages — by digest | the revision; named consumers only | anything a later job ships, tests or builds on |
+| **Entries** (`produces:` / `consumes:`) | the build's real outputs: files and images, by digest | the revision; named consumers only | anything a later job ships, tests or builds on |
 | **Reuse** (every `job_type: build`) | a whole job's outputs, keyed by its fingerprint | across revisions and PRs (trusted runs first) | skipping a build whose inputs are unchanged |
 | **Cache** (`cache:`) | tool caches (`.npm`, `.gradle`, pip, Bazel repo cache) | one workload, any branch | making a job that does run faster |
 
@@ -31,7 +31,7 @@ build:
       path: coverage/lcov.info
       expire: 7d
       when: always
-    image: oci                                  # an entry type: emitted at run time (see Images)
+    image: oci                                  # an entry type: the script pushes or records it (see Images)
 ```
 
 - A **file entry** is one path in the workspace: a file, a directory,
@@ -50,7 +50,12 @@ build:
 - An entry of type `file` with no path is only valid on a
   `github_actions:` job (the Actions artifact named after the key). An
   entry's `type:` (`file`, `oci`) is unrelated to a structure's
-  `type:` shape.
+  `type:` shape. In the short form `file` and `oci` are type names and
+  any other string is a path; a path named `oci` takes the long form
+  (`{ type: file, path: oci }`). A long form without `type:` is a file
+  entry and needs `path:`.
+- The long form's keys are `type`, `path`, `expire`, `when`, `build`
+  and `verify` (the last two on `oci` entries only; see Images).
 - There are only two entry types, `file` and `oci`: `npm` entries were
   removed (a definition with one doesn't load). Publish a package in the
   script, and record its tarball as a file entry if a later job needs it.
@@ -68,7 +73,7 @@ build:
   job's two newest successful runs, which are kept (the Artifacts tab
   says "kept: one of the job's two latest runs") so a waiting job and a
   rollback still have them. Reports expire by their date alone. Images
-  and packages live in their registries and never expire here.
+  live in their registries and never expire here.
 - **What expiry does:** an expired artifact no longer downloads (410);
   a rollback to it isn't offered; a build pass whose outputs
   expired is no match, so the job builds again; a *no changes* skip
@@ -80,7 +85,7 @@ build:
 - **Each organization has an artifact cap and a cache cap** (on
   pipemesh.io, 10 GB each; a self-hosted instance has none unless its
   admin sets them). File entries, reports and Actions artifacts count;
-  images, packages and logs don't. At the artifact cap a `produces:`
+  images and logs don't. At the artifact cap a `produces:`
   upload is refused and the job fails: "artifact storage for this
   organization is full: X of Y in use, and this upload is Z. Expired
   artifacts are deleted every hour; an admin can raise the limit in
@@ -153,7 +158,10 @@ nothing.
 
 ## Images
 
-Three cases; pick by who pulls the image.
+Four cases; pick by who pulls the image. Nothing outside a Pipemesh
+job can pull from Pipemesh's registry (every read needs a credential
+Pipemesh mints for one job), so an image a cluster or platform pulls is
+always case 1.
 
 **Architecture first.** Pipemesh's hosted runners are **Linux arm64**
 by default and **amd64** when the job names a `linux-amd64-*` size. (On
@@ -191,11 +199,12 @@ names the architecture when jobs of both share it
 pipemesh.io/docs/hosted-runners → *Building for both architectures*.
 
 **1. An image your cluster or platform deploys** (ECR, GHCR, Docker
-Hub, GAR): build and push in the script, then declare it as an `oci`
-entry with the `pipemesh produce` helper, which verifies the digest in
-the registry. Run it with no `image:` — Pipemesh's job image has the
-Docker CLI, buildx and the AWS CLI — and with `dockerd: true`, which
-gives the job a Docker daemon.
+Hub, GAR): build and push in the script with your own credentials,
+then record it as an `oci` entry with the `pipemesh produce` helper
+(the job checks the digest in the registry; see The check below). Run
+it with no `image:` — Pipemesh's job image has the Docker CLI, buildx
+and the AWS CLI — and with `dockerd: true`, which gives the job a
+Docker daemon.
 
 ```yaml
 image:
@@ -245,8 +254,75 @@ with `GHCR_TOKEN` under `secrets:` (a token with `write:packages`). Deploy by
 digest, never by tag: a rollback then redeploys exactly what that
 revision shipped.
 
-**2. A CI/toolchain image your own jobs run in**: let Pipemesh build and
-keep it. An `oci` entry with `build:` builds the directory after the
+**The check.** After the script, before an image it recorded is kept,
+the job checks that `ref@digest` resolves in its registry, with
+`docker buildx imagetools inspect` (Pipemesh's job image has it) or
+`crane manifest`, using the credentials those see — the `docker login`
+above. An image with neither fails it ("the image has neither docker
+nor crane"): a JDK image running Jib, say.
+
+**Jib (Gradle or Maven) to your own registry**: no Docker daemon, no
+Dockerfile. Jib writes the pushed digest to `build/jib-image.digest`
+(Maven: `target/jib-image.digest`). In a JDK image, log in with `crane`
+first: Jib reads the login from the same Docker config, and the check
+then has `crane`:
+
+```yaml
+api_image:
+  job_type: build
+  stage: build
+  image: gradle:8-jdk21                   # a JDK, plus bash, git, curl and tar
+  checkout:
+    - src
+    - build.gradle.kts
+    - settings.gradle.kts
+    - gradle
+    - gradlew
+  secrets:
+    - REGISTRY_TOKEN
+  variables:
+    REPO: ghcr.io/acme/shop-api
+  script: |
+    curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.22.0/go-containerregistry_Linux_arm64.tar.gz | tar -xz -C /usr/local/bin crane   # on PATH: the check uses it
+    echo "$REGISTRY_TOKEN" | crane auth login ghcr.io -u acme-ci --password-stdin
+    ./gradlew jib -Djib.to.image="$REPO:$CI_COMMIT_SHORT_SHA"
+    pipemesh produce oci api --ref "$REPO" --digest "$(cat build/jib-image.digest)"
+  produces:
+    api: oci
+```
+
+Jib builds `linux/amd64` unless `jib.from.platforms` names others,
+whatever the runner's architecture; set it to what the target runs
+(and add `linux/arm64` when a Pipemesh job runs in the image).
+
+**`verify:` replaces the check for one key**, when the image was pushed
+with other tools or credentials, or when the key needs a stricter check
+(a signature):
+
+```yaml
+  produces:
+    app:
+      type: oci
+      verify: docker buildx imagetools inspect "$PIPEMESH_REF@$PIPEMESH_DIGEST" > /dev/null && ./cosign verify --key cosign.pub "$PIPEMESH_REF@$PIPEMESH_DIGEST" > /dev/null
+```
+
+- It's bash, run in the job after its script, in the workspace, with
+  the script's variables and setup (a tool the script downloaded is
+  there), once per image recorded under the key. `PIPEMESH_KEY`,
+  `PIPEMESH_REF` (without any `@digest`) and `PIPEMESH_DIGEST` name the
+  image.
+- Exit 0 records the image; anything else fails the job, naming the key
+  and the ref. Its exit code is its last command's, so **join several
+  checks with `&&`** — on separate lines, only the last would count.
+- Only on an `oci` entry the script records (`pipemesh produce`). It's
+  a load error with `build:` (Pipemesh checks what it builds), on a file
+  entry (hashed at upload) and on a `github_actions:` job
+  (`pipemesh/produce` checks what it records). A key pushed to its
+  `pipemesh place` (case 3) needs none: the registry's digest is its
+  check, and `verify:` doesn't run for it.
+
+**2. A CI/toolchain image built from a Dockerfile, that your own jobs
+run in**: let Pipemesh build and keep it. An `oci` entry with `build:` builds the directory after the
 script succeeds (so the script can prepare it; a job still needs one), stores it in
 Pipemesh's registry tagged by the build context's fingerprint (an
 unchanged directory is never rebuilt), and later jobs run in it with
@@ -275,11 +351,118 @@ test:
 ```
 
 A pull request that changes `ci/` builds its own copy; other PRs use
-the default branch's. Only `image_from` can pull these images.
+the default branch's. The entry says `type: oci` (`build:` without it
+is a load error), needs a hosted runner, and isn't on a
+`github_actions:` job. `pipemesh place` and `pipemesh creds` refuse a
+`build:` key: Pipemesh pushes it. Later jobs run in it with
+`image_from:`, or consume it and pull it (below).
 
-**3. A public image** (`node:22-bookworm`): just `image:`. Pulls are
-anonymous — private registry images can't be used in `image:`; build
-them as case 2 instead.
+**3. An image your script makes for your own jobs** (Jib, ko,
+`docker buildx --push`, an upstream image copied with `crane copy`):
+an `oci` key without `build:`, pushed by the script into Pipemesh's
+registry at the place `pipemesh place <key>` prints. No registry token
+to store and no `pipemesh produce`: after the script succeeds, Pipemesh
+records the key from its place, with the digest the registry holds
+under the run's tag.
+
+```yaml
+api_image:
+  job_type: build
+  stage: build
+  image: gradle:8-jdk21                    # Jib needs a JDK, not a Docker daemon
+  checkout:
+    - src
+    - build.gradle.kts
+    - settings.gradle.kts
+    - gradle
+    - gradlew
+  script: |
+    pipemesh login                         # Jib, crane, docker and ko now log in by themselves
+    ./gradlew jib -Djib.to.image="$(pipemesh place api)"
+  produces:
+    api: oci
+
+mirror_toolchain:
+  job_type: build                          # reuses until the definition changes: bump the tag to copy again
+  stage: build
+  checkout: false
+  secrets:
+    - VENDOR_TOKEN
+  variables:
+    UPSTREAM: registry.vendor.example/toolchain:4.2
+  script: |
+    curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.22.0/go-containerregistry_Linux_arm64.tar.gz | tar -xz crane
+    echo "$VENDOR_TOKEN" | ./crane auth login registry.vendor.example -u ci --password-stdin
+    pipemesh login
+    ./crane copy "$UPSTREAM" "$(pipemesh place toolchain)"
+  produces:
+    toolchain: oci
+
+lint:
+  job_type: build
+  stage: test
+  image_from: mirror_toolchain/toolchain   # runs in the copy, pinned by digest
+  checkout:
+    - src
+  script: toolchain lint src
+```
+
+- **`pipemesh place <key>`** prints `<registry>/<place>:<tag>`: the
+  key's place in the run's own places (a pull request's run has its
+  own, which default-branch runs never read) and the run's own tag.
+  Push there; the record after the script reads that tag.
+- **`pipemesh login`** writes the `docker-credential-pipemesh` helper
+  and adds it to the job's Docker config (`$DOCKER_CONFIG/config.json`,
+  by default `~/.docker/config.json`) for the registry's host, so
+  docker, buildx, crane, Jib and ko log in by themselves, with a fresh
+  credential on every use: push to the job's `oci` keys' places, pull
+  the images it consumes. It's never automatic — call it before the
+  push — and it leaves alone a config that already names another
+  helper for that host.
+- **`pipemesh creds <key> --username`** / **`--password`** print a
+  login for one key's place, for a tool that takes one (each call makes
+  a new password, valid 15 minutes and masked in the log):
+  `crane auth login "$(pipemesh place api | cut -d/ -f1)" -u "$(pipemesh creds api --username)" -p "$(pipemesh creds api --password)"`.
+  No environment variable ever holds a registry credential, and nothing
+  goes under `secrets:` for Pipemesh's registry.
+- A declared key the script neither pushed to its place nor recorded
+  fails the job, as any missing entry does.
+- `pipemesh` is a shell function in the job's script and the `bash` it
+  starts; the image needs bash, git, curl and tar, nothing else.
+- Architecture: `crane copy` copies every platform the upstream has;
+  Jib builds `linux/amd64` unless `jib.from.platforms` says otherwise,
+  and a job on the default arm64 runner that runs in the image
+  (`image_from:`) needs `linux/arm64`. The `crane` tarball is
+  `…_Linux_arm64` on arm64 runners, `…_Linux_x86_64` on
+  `linux-amd64-*`.
+- Where the registry lives doesn't change any of this: on a
+  self-hosted instance it is Pipemesh's own (Zot, at the instance's
+  host) unless its admin opted into ECR; on pipemesh.io it is ECR.
+
+**Pulling an image from Pipemesh's registry in a later job**: consume
+it by name (`$NAME` is `ref@digest`) and call `pipemesh login`, or use
+`pipemesh creds NAME --username` / `--password` for a pull-only login.
+An image anywhere else the job pulls with its own credentials.
+
+```yaml
+contract_tests:
+  job_type: build
+  stage: test
+  dockerd: true
+  consumes:
+    API_IMAGE: api_image/api
+  checkout:
+    - tests/contract
+  script: |
+    pipemesh login
+    docker run -d -p 8080:8080 "$API_IMAGE"
+    ./tests/contract/run.sh http://localhost:8080
+```
+
+**4. A public image** (`node:22-bookworm`): just `image:`. Pulls are
+anonymous — a private registry's image can't be used in `image:`;
+copy it into Pipemesh's registry (case 3) or build it (case 2), and run
+in it with `image_from:`.
 
 Packages (npm, PyPI, …) have no entry type: publish them in the
 script, and record the tarball as a file entry when a later job needs it.

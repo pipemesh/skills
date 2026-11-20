@@ -262,7 +262,7 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `id_tokens` | OIDC tokens the job gets as masked variables, as GitLab CI declares them: a map `NAME: { aud: <audience> }` (`aud` may be a list). Minted when the job starts; `UPPER_SNAKE_CASE`, never `CI_` or `PIPEMESH_`, one source per name, at most 10 |
 | `needs` | jobs to wait for; no files flow along it (a job reads what it `consumes:`) |
 | `consumes` | entries to receive, a map `NAME: <job>/<key>`: `$NAME` is a file entry's path in the workspace or an image's `ref@digest`; also an ordering edge and a fingerprint input |
-| `produces` | entries this job outputs (files, images); an `oci` entry (`type: oci`) with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps |
+| `produces` | entries this job outputs (files, images): a path, `oci`, or `{ type, path, expire, when, build, verify }`. An `oci` entry (`type: oci`) with `build: <dir>` (or `{context, dockerfile, args}`) is an image Pipemesh builds and keeps; one without `build:` the script pushes to `$(pipemesh place <key>)` after `pipemesh login`, or records with `pipemesh produce`, and `verify:` (bash) replaces the check of an image it records — see artifacts-and-caching.md → Images |
 | `reports` | what the job writes for people to read, shown in the job's Reports tab: `key: <path>` or `key: { path, title, expire }`. A directory with `index.html` is a site, a `.md` file a document, an image an image. Uploaded whatever the outcome; a missing one never fails the job. Not consumable and not in the fingerprint: an output a job also reads goes under `produces:` too. On `github_actions:` jobs a key is the run's Actions artifact of that name. Not on `job_type: workflow`/`pipeline` (their body's jobs declare them). Reports count toward the organization's artifact storage and expire as artifacts do unless `expire:` says otherwise; a site holds at most 10,000 files |
 | `cache` | `key`, `restore_keys`, `paths`, `policy` — see artifacts-and-caching.md |
 | `runner` | where it runs: a hosted size — `linux-arm64-micro` (¼ vCPU / 512 MiB, no Docker daemon: for a notification or a tag), `linux-arm64-small` (default, 2 vCPU / 6.5 GiB), `linux-arm64-medium` (4 / 13 GiB), `-large` (8 / 26, on request), and the same sizes on x86-64 as `linux-amd64-micro`, `-small`, `-medium`, `-large` — or the organization's own runner by name. No `xlarge`. Build minutes count by size: micro ¼×, small 1×, medium 2×, large 4×, and a Docker daemon doubles them |
@@ -467,7 +467,7 @@ deploy_prod:
   `produces:` imports the run's Actions artifact named `dist`) and
   `reports:`, and none of
   `script`, `setup`, `uses`, `image`, `image_from`, `services`, `runner`,
-  `dockerd`, `secrets`, `id_tokens`, `cache`, nor an `oci` entry with `build:` — secrets stay in GitHub.
+  `dockerd`, `secrets`, `id_tokens`, `cache`, nor an `oci` entry with `build:` or `verify:` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
   over every job of it and of each local reusable workflow it calls:
   `actions/checkout` with `sparse-checkout:` → those directories (plus
@@ -729,7 +729,7 @@ replacement:
 | `consumes:` on a `job_type: workflow`/`pipeline` job | the body's jobs consume the parent's artifacts with `../` (`../build/jar`); a pipeline job's `fingerprint: { artifacts: }` says which ones it watches |
 | `checkout:` on a `job_type: workflow`/`pipeline` job | nothing: its body's jobs say what they read; a pipeline job names the files it watches in `fingerprint: { checkout: }` (a list), and without `fingerprint:` hands every revision over |
 | a pipeline job's fingerprint derived from everything its body reads | gone: without `fingerprint:` it hands every revision over; with it, only what it names counts (plus the body's text, its `variables:`, and the Settings variables and secrets the body reads) |
-| `publish:` | an image Pipemesh builds is a `produces:` entry with `build: <directory>`; any other image the script pushes and records with `pipemesh produce` |
+| `publish:` | an image Pipemesh builds is a `produces:` entry with `type: oci` and `build: <directory>`; an image only your jobs use the script pushes to `$(pipemesh place <key>)`; any other the script pushes and records with `pipemesh produce` |
 | `tags:` (runner labels) | `runner:`, a hosted size or the organization's own runner by name |
 | `rules:` | `checkout:` lists what the job reads, and `job_type:` decides when it runs |
 | `config:` | each name under `variables:` as `NAME: !settings` |
