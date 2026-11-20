@@ -428,7 +428,10 @@ lint:
 - A declared key the script neither pushed to its place nor recorded
   fails the job, as any missing entry does.
 - `pipemesh` is a shell function in the job's script and the `bash` it
-  starts; the image needs bash, git, curl and tar, nothing else.
+  starts; the image needs bash, git, curl and tar, nothing else. Its
+  `pipemesh login` logs the job in to Pipemesh's registry; it isn't the
+  npm CLI's `npx pipemesh login`, which signs a person in to the instance
+  from their terminal.
 - Architecture: `crane copy` copies every platform the upstream has;
   Jib builds `linux/amd64` unless `jib.from.platforms` says otherwise,
   and a job on the default arm64 runner that runs in the image
