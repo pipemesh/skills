@@ -83,6 +83,7 @@ can't be connected yet; a repository that moved to GitHub but kept its
 | `tags:` (runner labels) | `runner: <name>` — one runner of the organization's own (`npx pipemesh runners create <name>`); drop it for hosted runners, or name a hosted size (`runner: linux-arm64-medium`) |
 | `KUBERNETES_CPU_REQUEST` / `KUBERNETES_MEMORY_*` variables | refused: name a size with `runner:` |
 | `services: [docker:dind]`, `DOCKER_HOST` | `dockerd: true`: the job gets its own Docker daemon |
+| pushing to `$CI_REGISTRY_IMAGE` with `$CI_REGISTRY_USER` / `$CI_REGISTRY_PASSWORD` (docker, kaniko, Jib, crane) | for an image only later jobs use: an `oci` key without `build:`, `pipemesh login` (or `pipemesh creds <key> --username` / `--password` for a tool that takes a login), push to `$(pipemesh place <key>)`; consumers name it under `consumes:`. An image a cluster pulls stays in your registry, recorded with `pipemesh produce` (artifacts-and-caching.md → Images) |
 | `parallel: matrix:` | `matrix:` (`as: jobs` for independent lanes, `as: workflow` for one verdict) |
 | `environment: name: production` | `job_type: deploy` with `production: true` in the pipeline (a staging environment: `production: false`); the board shows what each job deployed. A review app per MR is a `job_type: task` in the PR workflow |
 | `resource_group:` / `interruptible:` | not needed: a pipeline job runs one revision at a time and newer revisions supersede queued ones |

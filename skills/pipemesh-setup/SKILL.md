@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.29.0;
+**Before Step 1, check this skill is current** (it is version 0.30.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.29.0
+npx pipemesh@latest version --skill=0.30.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -348,10 +348,17 @@ The rules that most often go wrong — they differ from other CI systems:
    child; with `fingerprint:` it holds a revision until something it
    names changes — the service's own fingerprint artifact
    (`fingerprint.artifacts`) or directories (`fingerprint.checkout`).
-9. **Images you deploy are built and pushed in the script**, then
-   recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
-   and deployed by digest. An `oci` entry with `build:` is only for CI
-   images your own jobs run in via `image_from:`. Hosted runners are **arm64**
+9. **Images you deploy are built and pushed in the script** to your
+   registry, then recorded with `pipemesh produce oci <key> --ref <repo> --digest <sha256>`
+   and deployed by digest; the job checks the digest with docker or
+   crane, so a JDK image running Jib logs in with `crane` first, or the
+   key gets a `verify:` script. **An image only your own jobs use**
+   (Jib, ko, a test image, an upstream image copied with `crane copy`)
+   goes to Pipemesh's registry: an `oci` key without `build:`, then
+   `pipemesh login` and a push to `$(pipemesh place <key>)` — recorded by
+   itself after the script, no registry secret. An `oci` entry with
+   `build:` (it says `type: oci`) is a CI image Pipemesh builds from a
+   Dockerfile for `image_from:`. Hosted runners are **arm64**
    unless the job names a `linux-amd64-*` size: what a job builds is its
    runner's architecture — check the deploy target's architecture and
    ask if it's amd64. On a self-hosted instance a job without a size
