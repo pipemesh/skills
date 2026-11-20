@@ -32,7 +32,6 @@ build:
       expire: 7d
       when: always
     image: oci                                  # an entry type: emitted at run time (see Images)
-    sdk: npm                                    # an entry type: emitted at run time
 ```
 
 - A **file entry** is one path in the workspace: a file, a directory,
@@ -50,8 +49,11 @@ build:
   off here**: same inputs → same digest → consumers skip.
 - An entry of type `file` with no path is only valid on a
   `github_actions:` job (the Actions artifact named after the key). An
-  entry's `type:` (`file`, `oci`, `npm`) is unrelated to a structure's
+  entry's `type:` (`file`, `oci`) is unrelated to a structure's
   `type:` shape.
+- There are only two entry types, `file` and `oci`: `npm` entries were
+  removed (a definition with one doesn't load). Publish a package in the
+  script, and record its tarball as a file entry if a later job needs it.
 - A `produces:` path is in the workspace, so it's whatever the job
   wrote there — or a checked-in file the job checks out. A path outside
   the checkout fails the job with "does not exist".
@@ -114,7 +116,7 @@ deploy_staging:
 - File entries are unpacked **at their original path** in the
   workspace. The variable the map names holds the entry's value: for a
   file entry its workspace-relative path (`DIST: build/dist` → `$DIST`
-  is `dist`), for an `oci` or `npm` entry `ref@digest` (`APP_IMAGE:
+  is `dist`), for an `oci` entry `ref@digest` (`APP_IMAGE:
   image/app` → `registry/repo@sha256:…`). A matrix cell's entry is
   quoted: `BUNDLE: "build[region=eu]/dist"`. Names are `UPPER_SNAKE_CASE`,
   never `PIPEMESH_…` or `CI_…` (Pipemesh's own), and not also set under
@@ -259,6 +261,7 @@ build_ci:
   script: echo "building the CI image from ci/"
   produces:
     ci_image:
+      type: oci                          # build: needs it
       build: ci                          # Dockerfile defaults to ci/Dockerfile
                                          # long form: build: { context, dockerfile, args }
 test:
@@ -278,11 +281,8 @@ the default branch's. Only `image_from` can pull these images.
 anonymous — private registry images can't be used in `image:`; build
 them as case 2 instead.
 
-npm packages follow case 1: publish in the script, then
-`pipemesh produce npm sdk --ref "@acme/sdk@$version" --digest "$(npm view @acme/sdk@$version dist.integrity)"`.
-To publish only when the package changed:
-`pipemesh produce unchanged sdk --digest "$d" || npm publish` re-emits
-the previous entry when the digest matches.
+Packages (npm, PyPI, …) have no entry type: publish them in the
+script, and record the tarball as a file entry when a later job needs it.
 
 ## Reuse: what a build does
 
