@@ -479,8 +479,7 @@ jobs:
   `- uses: pipemesh/consume@v1` (the job declares `consumes:`; the
   workflow's `permissions:` grant `id-token: write` and
   `contents: read`); entries become `$PIPEMESH_<PATH>` variables in the
-  run. `- uses: pipemesh/produce@v1` emits an image or npm package
-  entry.
+  run. `- uses: pipemesh/produce@v1` emits an image entry.
 - A `github_actions:` job can't also have `script`, `setup`, `uses`,
   `image`, `image_from`, `services`, `runner`, `dockerd`, `secrets`,
   `id_tokens`, `cache`, or an `oci` entry with `build:` — the Actions
@@ -639,6 +638,7 @@ build_ci:
   script: echo "building the CI image"
   produces:
     ci_image:
+      type: oci
       build: ci                              # Pipemesh builds and keeps it, no registry token
 graph:
   job_type: build
