@@ -31,11 +31,11 @@ it, offer a pull request, and tell the user how to turn it on.
 Work through the steps in order. The reference files hold the detail;
 read each one when its step comes up, not all up front.
 
-**Before Step 1, check this skill is current** (it is version 0.30.1;
+**Before Step 1, check this skill is current** (it is version 0.31.0;
 the version below changes with it):
 
 ```bash
-npx pipemesh@latest version --skill=0.30.1
+npx pipemesh@latest version --skill=0.31.0
 ```
 
 If it says a newer pipemesh-setup skill is out, tell the user, with the
@@ -530,8 +530,8 @@ the exact subject lines of those jobs for their trust policies.
 Offer to do the first part from the terminal: `npx pipemesh login`
 (show the user the code and page it prints; they approve it in the
 browser — never approve it for them; `--no-browser` only prints the
-page), `npx pipemesh repos` to see
-whether the repository is connected, and `npx pipemesh connect` if it
+page), `npx pipemesh meshes` to see
+whether the repository is connected (it shows up as a mesh), and `npx pipemesh connect` if it
 isn't (the user installs the GitHub App in the page it opens;
 `--no-wait` returns at once). Merging the pull request is what turns it
 on: `npx pipemesh@latest repo` shows the repository go from inactive to
