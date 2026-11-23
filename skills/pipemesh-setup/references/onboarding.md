@@ -59,7 +59,7 @@ Preview of the board: <the link from npx pipemesh preview> (open until <date>)
 <the table from the summary>
 
 ## Before merging
-- [ ] Repository connected in Pipemesh (`npx pipemesh repos` lists it; it activates when this file lands on `main`)
+- [ ] Repository connected in Pipemesh (`npx pipemesh meshes` lists its mesh; it activates when this file lands on `main`)
 - [ ] Secrets created in Pipemesh: `…`
 - [ ] Bootstrap stack deployed by hand, with the cloud trust for the job identities (subjects from `npx pipemesh identity` once this is merged): `<the command>`
 - [ ] <anything else this definition needs>
@@ -83,7 +83,7 @@ browser):
 
 ```bash
 npx pipemesh login      # shows a code and opens a page; approve it signed in with GitHub or GitLab
-npx pipemesh repos      # is this repository listed? then skip connect
+npx pipemesh meshes     # is this repository's mesh listed? then skip connect
 npx pipemesh connect    # GitHub: installs the Pipemesh GitHub App; GitLab: opens the page to paste a group token; waits for its repositories
 npx pipemesh whoami     # who the CLI is signed in as, and in which organizations
 ```
@@ -136,24 +136,25 @@ out.
    only for jobs that run on GitHub Actions (`github_actions:`) —
    starts and cancels Actions runs. It can never push code.
 
-### 2. The repository and its meshes
+### 2. The repository and its mesh
 
-Every repository the connection reaches shows up in Pipemesh: there is
-nothing to add or enable. Each pipeline and workflow its definition names
-is a **mesh**. The repository is **inactive** until a `pipemesh.yaml`
-lands on its branch, the default branch by name (e.g. `main`), and **active** from
-then on — merging the pull request is what turns it on.
-`npx pipemesh@latest repo` shows its state (in the browser: **Meshes**,
+Every repository the connection reaches shows up in Pipemesh as a
+**mesh**: the repository with its branch, its switch, its settings and the
+pipelines and workflows its definition names. There is nothing to add or
+enable. The mesh is **inactive** until a `pipemesh.yaml` lands on its
+branch, the default branch by name (e.g. `main`), and **active** from then
+on — merging the pull request is what turns it on.
+`npx pipemesh@latest mesh` shows its state (in the browser: **Meshes**,
 with an **Inactive** tab). The pipeline, push workflows and the jobs'
 OIDC subjects follow that branch.
 
-- **Another branch** is set in the repository's settings (**General**),
-  or with `npx pipemesh@latest repo --branch=<b>`. Before the repository is
+- **Another branch** is set in the mesh's settings (**General**),
+  or with `npx pipemesh@latest mesh --branch=<b>`. Before the mesh is
   first active it changes freely; afterwards it changes the jobs' OIDC
   subjects (`ref:refs/heads/<branch>`), so Pipemesh shows the old and
   new subjects and asks first (`--yes` on the CLI). Check the branch is
   the one that should deploy before trusting its subjects.
-- **Disabling** a repository (`repo --disable`, or the switch in General)
+- **Pausing** a mesh (`mesh --disable`, or the switch in General)
   stops everything new from running and keeps its history.
 - **For a multi-repository pipeline,** each repository named under
   `repos:` must be reachable by the same organization's connection

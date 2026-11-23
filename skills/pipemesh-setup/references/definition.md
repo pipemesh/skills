@@ -1,4 +1,4 @@
-# Mesh definition: pipemesh.yaml
+# The definition: pipemesh.yaml
 
 Condensed from pipemesh.io/docs/definition and /docs/release-flow.
 When something here and the live docs disagree, the docs win.
