@@ -344,7 +344,7 @@ The rules that most often go wrong — they differ from other CI systems:
    enforce it. A suite that runs as one node is `job_type: workflow`
    with `body:` (a `type: workflow` body); one pipeline per service is
    `job_type: pipeline` with `body:` (a `type: pipeline` body) and
-   `variables:`. Without `fingerprint:` it hands every revision to its
+   `env:`. Without `fingerprint:` it hands every revision to its
    child; with `fingerprint:` it holds a revision until something it
    names changes — the service's own fingerprint artifact
    (`fingerprint.artifacts`) or directories (`fingerprint.checkout`).
@@ -358,7 +358,9 @@ The rules that most often go wrong — they differ from other CI systems:
    `pipemesh login` and a push to `$(pipemesh place <key>)` — recorded by
    itself after the script, no registry secret. An `oci` entry with
    `build:` (it says `type: oci`) is a CI image Pipemesh builds from a
-   Dockerfile for `image_from:`. Hosted runners are **arm64**
+   Dockerfile; a job runs in it by consuming it and naming it
+   (`consumes: { BUILD_IMAGE: build_ci/ci_image }` and
+   `image: !env BUILD_IMAGE`). Hosted runners are **arm64**
    unless the job names a `linux-amd64-*` size: what a job builds is its
    runner's architecture — check the deploy target's architecture and
    ask if it's amd64. On a self-hosted instance a job without a size
@@ -376,10 +378,10 @@ The rules that most often go wrong — they differ from other CI systems:
    `pipemesh:`, and every body, job or component reached that way
    carries its `type:` (rule 4).
 12. **Secrets are named, not inlined.** List them per job under
-   `secrets:`; a non-secret setting is a variable the job declares with
-   `NAME: !settings` under `variables:` (`UPPER_SNAKE_CASE`). Values are
-   set in Pipemesh, and a name has one source: never `!settings` and a
-   value in the definition both. Pull-request runs don't receive secrets
+   `secrets:`; a non-secret setting is a variable the job lists under
+   `vars:` (`vars: [NAME]`, `UPPER_SNAKE_CASE`). Values are set in
+   Pipemesh, and a name has one source: never in both `vars:` and
+   `env:`. Pull-request runs don't receive secrets
    unless a secret allows it. Prefer OIDC to stored cloud keys; the
    OIDC provider and the roles jobs assume go in a bootstrap stack the
    user deploys by hand, never in the pipeline that needs them to log in
@@ -400,8 +402,7 @@ The rules that most often go wrong — they differ from other CI systems:
    pin a toolchain image when the project needs other versions. A job
    that must not follow image updates (a deploy that changes the
    platform it runs on) can take its image from a Settings variable:
-   `DEPLOY_IMAGE: !settings` under `variables:` and
-   `image: !var DEPLOY_IMAGE`, the variable holding a full reference
+   `vars: [DEPLOY_IMAGE]` and `image: !env DEPLOY_IMAGE`, the variable holding a full reference
    pinned by digest (definition.md → Tags). `services:` is
    ignored — start databases in the script (patterns.md §12).
 14. **GitHub `${{ … }}` expressions are not interpolated.** Use the

@@ -64,20 +64,24 @@ pipemesh:
   file the tag is written in** (never across files). A whole value only
   — never part of a string, never merged with sibling keys. A `!ref`
   list item whose value is a list splices its items in.
-- `NAME: !settings` under a job's `variables:`: the job gets the value
-  set in the repository's Settings (or its organization's) under that
-  name (`UPPER_SNAKE_CASE`). It takes no value in YAML, and a name has
-  one source: `!settings` on a name the body or the run that started
-  the job also sets is a load error. Settings belong to the revision:
+- `vars: [NAME, …]` on a job: the job gets the value set in the
+  repository's Settings (or its organization's) under each name
+  (`UPPER_SNAKE_CASE`), shaped like `secrets:`. A name has one source:
+  a `vars:` name the body's `env:` or the run that started the job also
+  sets is a load error. The old `NAME: !settings` under `variables:` is
+  a load error that says so. Settings belong to the revision:
   each revision pins the versions current when it started, and an edit
   (`npx pipemesh vars set NAME …`) starts a revision of the repository's
   pipeline when one of its jobs reads it. A child pipeline's job that
   reads it gets the edit through the parent: the parent's revision
   starts, and its `job_type: pipeline` job hands it over.
-- `image: !var NAME`: the job's image is the value of its variable
-  `NAME` — a `!settings` one holding a full image reference, best
-  pinned by digest, or a plain value (resolved when the definition
-  loads). Only `image:` takes it; secrets never can. With `!settings`,
+- `image: !env NAME`: the job's image is the value of its variable
+  `NAME` — a `vars:` one holding a full image reference, best pinned
+  by digest, an `env:` value (resolved when the definition loads), or
+  an `oci` entry the job consumes as `NAME` (the image another job
+  built, pinned by digest). Only `image:` takes it, and a `uses:` job
+  passes it as `with: { image: !env NAME }`; secrets never can. `!var`
+  is the old spelling and a load error. With `vars:`,
   changing the variable starts a revision that runs in the new image,
   and a rollback restores the old one; a name that isn't set, or a
   value that isn't an image reference, stops the revision (the
@@ -232,7 +236,7 @@ value on every trigger. Values arrive in the run as variables.
 
 A body is `type:` (`workflow` or `pipeline`; required when the body
 stands alone), `stages:` (a list, required), `jobs:` (a map, required),
-optional `variables:` (body-wide), and for pipelines optional `repos:`.
+optional `env:` (body-wide), and for pipelines optional `repos:`.
 Nothing else — no `kind:`, no triggers. A `type: workflow` body can
 back a workflow entry and `job_type: workflow` jobs at once; a
 `type: pipeline` body backs the pipeline or `job_type: pipeline` jobs.
@@ -254,10 +258,10 @@ back a workflow entry and `job_type: workflow` jobs at once; a
 | `setup` | a list of steps, each `uses:` (and `with:`): script-only components prepended to `script` |
 | `body` | `job_type: workflow` and `job_type: pipeline` only: the body to run (`!ref`, `!include`, inline; its `type:` matches the job type) |
 | `fingerprint` | `job_type: pipeline` only: `artifacts:` (a list of `<job>/<key>`) and `checkout:` (a list of paths, or `false`) — what the job watches before it hands a revision over; without it, every revision is handed over (job_type: workflow and job_type: pipeline, below) |
-| `image` | a **public** container image with bash, git, curl and tar (private images: build them with an `oci` entry's `build:` + `image_from`), or `!var NAME`: the image a job variable holds (a `!settings` one pins it in Settings) |
-| `image_from` | run in an image another job built: `<job>/<oci key>` (exclusive with `image`) |
+| `image` | a **public** container image with bash, git, curl and tar (private images: build them with an `oci` entry's `build:` and consume them), or `!env NAME`: the image a job variable holds: a `vars:` name pins it in Settings, a consumed `oci` entry runs in what another job built |
 | `services` | loads but is **ignored** by the runners — start services in the script (patterns.md §12) |
-| `variables` | job variables: a string, or `NAME: !settings` for the repository's Settings variable of that name (`UPPER_SNAKE_CASE`, one source per name); on `job_type: workflow`/`pipeline`, the child's variables |
+| `env` | the job's environment variables, as literal strings; on `job_type: workflow`/`pipeline`, the child's |
+| `vars` | names read from the repository's Settings variables (`UPPER_SNAKE_CASE`), like `secrets:`; one source per name across `env`, `vars`, `secrets`, `consumes` and `id_tokens` |
 | `secrets` | names of repository secrets the job receives (it gets no others) |
 | `id_tokens` | OIDC tokens the job gets as masked variables, as GitLab CI declares them: a map `NAME: { aud: <audience> }` (`aud` may be a list). Minted when the job starts; `UPPER_SNAKE_CASE`, never `CI_` or `PIPEMESH_`, one source per name, at most 10 |
 | `needs` | jobs to wait for; no files flow along it (a job reads what it `consumes:`) |
@@ -428,7 +432,7 @@ and the versions of its secrets/config.
   until something it names changes (below).
 
 A build or deploy that reads nothing (no checkout, no consumes, no
-`image_from`, no `repos:`, no secrets or config) has a fingerprint of
+consumed image, no `repos:`, no secrets or `vars:`) has a fingerprint of
 its definition alone: it runs once and then is reused or shows
 *no changes* on every revision. It loads, with a warning: list what it
 reads in `checkout:`, or make it a `job_type: task`.
@@ -437,7 +441,7 @@ reads in `checkout:`, or make it a `job_type: task`.
 
 A `build`, `deploy` or `task` names exactly one executor:
 
-- **`script:`** (with `setup:`, `image:`, `image_from:`, `services:`,
+- **`script:`** (with `setup:`, `image:`, `services:`,
   `runner:`, `dockerd:`, `cache:`, `secrets:`, `id_tokens:`): Pipemesh's
   hosted runners, or your own (`runner: <name>`).
 - **`uses:`**: a component, which brings the execution keys.
@@ -466,7 +470,7 @@ deploy_prod:
   job takes `consumes:`, `produces:` (an entry `dist: file` under
   `produces:` imports the run's Actions artifact named `dist`) and
   `reports:`, and none of
-  `script`, `setup`, `uses`, `image`, `image_from`, `services`, `runner`,
+  `script`, `setup`, `uses`, `image`, `services`, `runner`,
   `dockerd`, `secrets`, `id_tokens`, `cache`, nor an `oci` entry with `build:` or `verify:` — secrets stay in GitHub.
 - **Its checkout is read from the workflow file** at each revision,
   over every job of it and of each local reusable workflow it calls:
@@ -493,14 +497,14 @@ orders:                                  # hand the revision to a child pipeline
   job_type: pipeline
   stage: dispatch
   body: !ref service                     # a type: pipeline body
-  variables:                             # the child's variables
+  env:                                   # the child's variables
     SERVICE: orders
   fingerprint:                           # optional: hold the revision until this changes
     artifacts:                           # produced artifacts it watches (<job>/<key>)
       - graph/orders
 ```
 
-- Both take `body:` (the child's body), `variables:`, `stage:`, `needs:`,
+- Both take `body:` (the child's body), `env:`, `stage:`, `needs:`,
   `timeout_seconds:`, `allow_failure:`, `matrix:` and `was:`, and a
   pipeline job `fingerprint:` — none of the executor keys, no
   `consumes:`, `checkout:` or `reports:` (each a load error: the body's
@@ -517,7 +521,7 @@ orders:                                  # hand the revision to a child pipeline
   something it names changes. `artifacts:` lists produced artifacts
   (`<job>/<key>`), which the job also waits for; `checkout:` is a list
   of paths, or `false` (or left out) for no files — `true` is a load
-  error. The body's text, the job's `variables:` and the Settings
+  error. The body's text, the job's `env:` and the Settings
   variables and secrets the body reads always count. A shared body that
   picks its service by a variable gets one job per service, each
   watching its own artifact or directories. A `fingerprint.artifacts`
@@ -718,7 +722,7 @@ replacement:
 | a standalone body, job or component without `type:` | the load error names its shape: add `type: workflow`, `pipeline`, `job` or `component` |
 | `kind: pipeline` / `kind: workflow` at the top of a body | `type: pipeline` / `type: workflow`, matching where the body is used |
 | `paths:` on a job | `checkout:` (an empty `paths:` → `checkout: false`; no `paths:` → `checkout: true`, which only a build defaults to) |
-| `delegate:` with `type: workflow` or `type: pipeline` and `params:` (`body`, `variables`) | `job_type: workflow` / `job_type: pipeline` with `body:`, `variables:` (and, for a pipeline, what narrows the hand-over: `fingerprint:` with `artifacts:` and `checkout:`) on the job |
+| `delegate:` with `type: workflow` or `type: pipeline` and `params:` (`body`, `variables`) | `job_type: workflow` / `job_type: pipeline` with `body:`, `env:` (and, for a pipeline, what narrows the hand-over: `fingerprint:` with `artifacts:` and `checkout:`) on the job |
 | `delegate:` with `type: github_actions` and `params:` (`workflow`, `inputs`) | `github_actions:` (`workflow`, `inputs`) on a build, deploy or task |
 | `trigger:` | as `delegate:` |
 | `paths:` in a mount under a job's `repos:` | `checkout:` |
@@ -728,11 +732,15 @@ replacement:
 | `github_actions:` with `artifacts:` | a `produces:` file entry (`dist: file`): it imports the run's Actions artifact of the same name |
 | `consumes:` on a `job_type: workflow`/`pipeline` job | the body's jobs consume the parent's artifacts with `../` (`../build/jar`); a pipeline job's `fingerprint: { artifacts: }` says which ones it watches |
 | `checkout:` on a `job_type: workflow`/`pipeline` job | nothing: its body's jobs say what they read; a pipeline job names the files it watches in `fingerprint: { checkout: }` (a list), and without `fingerprint:` hands every revision over |
-| a pipeline job's fingerprint derived from everything its body reads | gone: without `fingerprint:` it hands every revision over; with it, only what it names counts (plus the body's text, its `variables:`, and the Settings variables and secrets the body reads) |
+| a pipeline job's fingerprint derived from everything its body reads | gone: without `fingerprint:` it hands every revision over; with it, only what it names counts (plus the body's text, its `env:`, and the Settings variables and secrets the body reads) |
 | `publish:` | an image Pipemesh builds is a `produces:` entry with `type: oci` and `build: <directory>`; an image only your jobs use the script pushes to `$(pipemesh place <key>)`; any other the script pushes and records with `pipemesh produce` |
 | `tags:` (runner labels) | `runner:`, a hosted size or the organization's own runner by name |
 | `rules:` | `checkout:` lists what the job reads, and `job_type:` decides when it runs |
-| `config:` | each name under `variables:` as `NAME: !settings` |
+| `config:` | the names under `vars:` (`vars: [NAME]`) |
+| `variables:` | `env:` (literals) and `vars:` (names read from Settings) |
+| `NAME: !settings` under `variables:` | `vars: [NAME]` |
+| `image: !var NAME` | `image: !env NAME` |
+| `image_from: <job>/<key>` | `consumes: { NAME: <job>/<key> }` and `image: !env NAME` |
 | `skip:` on a job | deprecated, not rejected: it loads, is ignored and `npx pipemesh check` warns. Remove it; the job type decides (a build reuses, a deploy compares with its last success, a task always runs). A job that must run every time is a `task` |
 | `sources:` | `checkout:` |
 
@@ -742,5 +750,5 @@ Add the modeline at the top of each file — definition:
 `# yaml-language-server: $schema=https://pipemesh.io/api/meta/pipemesh-definition.schema.json`;
 `.pipemesh/*.yaml` bodies: `…/pipemesh-body.schema.json`;
 components: `…/pipemesh-component.schema.json`. In VS Code settings, add
-`!include scalar`, `!ref scalar`, `!settings scalar` and `!var scalar` to
+`!include scalar`, `!ref scalar` and `!env scalar` to
 `yaml.customTags`.

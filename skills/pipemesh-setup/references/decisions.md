@@ -125,7 +125,7 @@ the assumption at the top of the summary.
   component (`nx/fingerprint@1`, `turbo/fingerprint@1`,
   `bazel/fingerprint@1`) and produces one artifact per service; one
   `job_type: pipeline` job per service runs a shared `type: pipeline`
-  service body, with `SERVICE: <name>` under its `variables:`, and
+  service body, with `SERVICE: <name>` under its `env:`, and
   watches only its service's artifact (`fingerprint: { artifacts:
   [graph/<name>] }`), so it hands the revision over only when that
   artifact changed. See `patterns.md`.
@@ -162,7 +162,7 @@ A build's or deploy's fingerprint covers the job's definition, the
 files it checks out, the digests of what it consumes, its parameters
 and the versions of the secrets and config it declares. A pipeline
 job's fingerprint is what its `fingerprint:` names (`artifacts:`,
-`checkout:`), plus its body's text, its `variables:` and the Settings
+`checkout:`), plus its body's text, its `env:` and the Settings
 variables and secrets the body reads.
 
 Judgment calls:
@@ -193,7 +193,7 @@ Judgment calls:
   whose inputs are all checked out is a `build`, so it reuses; a job
   that must run every time is a `task`.
 - **A build or deploy that reads nothing** (no checkout, no consumes,
-  no secrets or config, no `image_from`, no `repos:`) runs once and
+  no secrets or `vars:`, no consumed image, no `repos:`) runs once and
   then is reused or shows *no changes* forever: list what it reads in
   `checkout:`, or make it a `job_type: task`. `npx pipemesh check`
   warns.

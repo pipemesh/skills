@@ -125,7 +125,7 @@ deploy_staging:
   image/app` → `registry/repo@sha256:…`). A matrix cell's entry is
   quoted: `BUNDLE: "build[region=eu]/dist"`. Names are `UPPER_SNAKE_CASE`,
   never `PIPEMESH_…` or `CI_…` (Pipemesh's own), and not also set under
-  `variables:` or `secrets:`; the same entry cannot be named twice.
+  `env:`, `vars:` or `secrets:`; the same entry cannot be named twice.
 - Paths through a body: `ci/build/dist` is the `dist` entry of job
   `build` inside the body that the `job_type: workflow` job `ci` runs;
   `../build/jar` inside such a body is the parent's `build/jar`.
@@ -280,7 +280,7 @@ api_image:
     - gradlew
   secrets:
     - REGISTRY_TOKEN
-  variables:
+  env:
     REPO: ghcr.io/acme/shop-api
   script: |
     curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.22.0/go-containerregistry_Linux_arm64.tar.gz | tar -xz -C /usr/local/bin crane   # on PATH: the check uses it
@@ -325,8 +325,8 @@ with other tools or credentials, or when the key needs a stricter check
 run in**: let Pipemesh build and keep it. An `oci` entry with `build:` builds the directory after the
 script succeeds (so the script can prepare it; a job still needs one), stores it in
 Pipemesh's registry tagged by the build context's fingerprint (an
-unchanged directory is never rebuilt), and later jobs run in it with
-`image_from:`:
+unchanged directory is never rebuilt), and later jobs run in it by
+consuming it and naming it with `image: !env NAME`:
 
 ```yaml
 build_ci:
@@ -343,7 +343,9 @@ build_ci:
 test:
   job_type: build
   stage: test
-  image_from: build_ci/ci_image
+  consumes:
+    BUILD_IMAGE: build_ci/ci_image
+  image: !env BUILD_IMAGE
   checkout:
     - src
     - Makefile
@@ -354,8 +356,9 @@ A pull request that changes `ci/` builds its own copy; other PRs use
 the default branch's. The entry says `type: oci` (`build:` without it
 is a load error), needs a hosted runner, and isn't on a
 `github_actions:` job. `pipemesh place` and `pipemesh creds` refuse a
-`build:` key: Pipemesh pushes it. Later jobs run in it with
-`image_from:`, or consume it and pull it (below).
+`build:` key: Pipemesh pushes it. Later jobs run in it
+(`image: !env NAME` on what they consume), or consume it and pull it
+(below).
 
 **3. An image your script makes for your own jobs** (Jib, ko,
 `docker buildx --push`, an upstream image copied with `crane copy`):
@@ -388,7 +391,7 @@ mirror_toolchain:
   checkout: false
   secrets:
     - VENDOR_TOKEN
-  variables:
+  env:
     UPSTREAM: registry.vendor.example/toolchain:4.2
   script: |
     curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.22.0/go-containerregistry_Linux_arm64.tar.gz | tar -xz crane
@@ -401,7 +404,9 @@ mirror_toolchain:
 lint:
   job_type: build
   stage: test
-  image_from: mirror_toolchain/toolchain   # runs in the copy, pinned by digest
+  consumes:
+    JOB_IMAGE: mirror_toolchain/toolchain
+  image: !env JOB_IMAGE                    # runs in the copy, pinned by digest
   checkout:
     - src
   script: toolchain lint src
@@ -435,7 +440,7 @@ lint:
 - Architecture: `crane copy` copies every platform the upstream has;
   Jib builds `linux/amd64` unless `jib.from.platforms` says otherwise,
   and a job on the default arm64 runner that runs in the image
-  (`image_from:`) needs `linux/arm64`. The `crane` tarball is
+  (`image: !env NAME`) needs `linux/arm64`. The `crane` tarball is
   `…_Linux_arm64` on arm64 runners, `…_Linux_x86_64` on
   `linux-amd64-*`.
 - Where the registry lives doesn't change any of this: on a
@@ -465,7 +470,7 @@ contract_tests:
 **4. A public image** (`node:22-bookworm`): just `image:`. Pulls are
 anonymous — a private registry's image can't be used in `image:`;
 copy it into Pipemesh's registry (case 3) or build it (case 2), and run
-in it with `image_from:`.
+in it by consuming it, with `image: !env NAME`.
 
 Packages (npm, PyPI, …) have no entry type: publish them in the
 script, and record the tarball as a file entry when a later job needs it.
@@ -593,7 +598,7 @@ read-only on pull-request runs.
 Every job has: `CI_COMMIT_SHA`, `CI_COMMIT_SHORT_SHA` (8 chars),
 `CI_COMMIT_REF_NAME`, `CI_COMMIT_MESSAGE`, `CI_COMMIT_AUTHOR`,
 `CI_COMMIT_TIMESTAMP`, `CI_JOB_NAME`, the body's and job's
-`variables:`, workflow inputs (under their own names), matrix values
+`env:`, its `vars:`, workflow inputs (under their own names), matrix values
 (shell-safe names), and `PIPEMESH_<CONSUME_PATH>` per consumed entry.
 `$PIPEMESH_WORKSPACE` is the workspace root (a shell variable — export
 it if a child process needs it); it holds the job's checkout and what
@@ -620,9 +625,9 @@ Not set: `CI_COMMIT_BRANCH`, `CI_DEFAULT_BRANCH`, `CI_PIPELINE_ID`,
 `CI_COMMIT_REF_NAME` in pipeline jobs — the pipeline only ever sees the
 repository's branch. Pass what the scripts of a body run by a
 `job_type: workflow`/`job_type: pipeline` job need from the parent run (an
-input, the tag name) explicitly in that job's `variables:`. The trigger variables
+input, the tag name) explicitly in that job's `env:`. The trigger variables
 (`CI_PIPELINE_SOURCE`, `CI_COMMIT_TAG`, `CI_MERGE_REQUEST_*`) are set by
-Pipemesh only — never set them in `variables:`.
+Pipemesh only — never set them in `env:`.
 
 GitHub Actions equivalents: `github.sha` → `$CI_COMMIT_SHA`;
 `github.ref_name` → `$CI_COMMIT_REF_NAME` (PRs: source branch; tags:
@@ -630,5 +635,5 @@ the tag); `github.base_ref` → `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME`;
 `github.event.pull_request.number` → `$CI_MERGE_REQUEST_IID`;
 `github.workspace` → `$PIPEMESH_WORKSPACE`; `github.event_name` →
 `$CI_PIPELINE_SOURCE` (values above); `secrets.X` → `$X` with `X` in
-`secrets:`; `vars.X` → `$X` with `X: !settings` under `variables:`; `matrix.x` →
+`secrets:`; `vars.X` → `$X` with `X` in `vars:`; `matrix.x` →
 `${{ matrix.x }}` (load time) or `$x`.
