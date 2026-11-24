@@ -1,7 +1,7 @@
 # Migrating from GitLab CI (.gitlab-ci.yml)
 
 Pipemesh's job keys look familiar to GitLab users (`stage`, `script`,
-`needs`, `image`, `variables`, `cache`, `retry`,
+`needs`, `image`, `cache`, `retry`,
 `allow_failure`), and jobs run on the `gitlab-runner` agent, so the
 core `CI_COMMIT_*` variables keep working. The semantics around them
 differ in a few deep ways — read this before translating.
@@ -56,8 +56,8 @@ can't be connected yet; a repository that moved to GitHub but kept its
 | `default: before_script:` | repeat on each job, or put the lines in a component / `!ref` list spliced into `script` |
 | `image:` | same — a public image with bash, git, curl, tar (`python:3.12` → `python:3.12-bookworm` is the same thing, explicit) |
 | `services:` | not supported (loads, ignored): start the service in the script — patterns.md §12 |
-| `variables:` (global/job) | body-level `variables:` / job `variables:` |
-| CI/CD variables (masked/protected) | Pipemesh repository **secrets** (named per job in `secrets:`) or **variables** (`NAME: !settings` under the job's `variables:`) |
+| `variables:` (global/job) | body-level `env:` / job `env:` |
+| CI/CD variables (masked/protected) | Pipemesh repository **secrets** (named per job in `secrets:`) or **variables** (listed in the job's `vars:`) |
 | `needs:` | `needs:` (jobs of the same body) |
 | `dependencies:` | `consumes:` names exactly what the job receives |
 | `artifacts: paths:` | a `produces:` entry: `<key>:` with `path: <dir or file>` and `expire: 14d` under it |

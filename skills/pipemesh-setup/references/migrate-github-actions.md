@@ -57,7 +57,7 @@ job.
 | `container: image` | `image:` |
 | `services:` | not supported (ignored): start it in the script — patterns.md §12 |
 | `steps: - run:` | lines of `script:` (one shell, `set -e`; `working-directory:` → `cd`; `shell: python` → `python - <<'EOF'`) |
-| `env:` (workflow/job/step) | `variables:` (body or job); step-level env → `export` in the script |
+| `env:` (workflow/job/step) | `env:` (body or job); step-level env → `export` in the script |
 | `if:` | usually disappears: the job goes in the workload where it applies. Branch/event conditions → which workload; path conditions → `checkout:`; `if: failure()` steps → `trap` |
 | `strategy.matrix` | `matrix:`; `as: workflow` when variants pass/fail together (CI), `as: jobs` for independent lanes; `include:`/`exclude:` → reshape or separate jobs; `fail-fast` has no equivalent |
 | `continue-on-error: true` | `allow_failure: true` |
@@ -87,7 +87,7 @@ job.
 | `docker/setup-buildx-action`, `setup-qemu-action` | nothing on the default job image (buildx included) |
 | `docker/build-push-action` | `docker build` + `docker push` in the script, then `pipemesh produce oci <key> --ref <repo> --digest <sha256>` (artifacts-and-caching.md → Images). Hosted runners are arm64: GitHub's `ubuntu-latest` built amd64 — check the target. An image only later jobs use (tests, `container:`) goes to Pipemesh's registry instead: `dockerd: true`, `pipemesh login`, then `docker buildx build --push -t "$(pipemesh place <key>)" .` |
 | `./gradlew jib` / `mvn jib:build` | the same command in a JDK `image:`. To your registry: `crane auth login` first (Jib reads that login; the digest check needs crane or docker), then `pipemesh produce oci <key> --ref <repo> --digest "$(cat build/jib-image.digest)"`. Only for later jobs: `pipemesh login`, then `-Djib.to.image="$(pipemesh place <key>)"`, nothing else |
-| `crane copy`, `skopeo copy`, `docker pull` + `docker push` mirroring an upstream image | `pipemesh login`, then `crane copy "$UPSTREAM" "$(pipemesh place <key>)"` under an `oci` key; later jobs run in it with `image_from:` |
+| `crane copy`, `skopeo copy`, `docker pull` + `docker push` mirroring an upstream image | `pipemesh login`, then `crane copy "$UPSTREAM" "$(pipemesh place <key>)"` under an `oci` key; later jobs consume it and run in it with `image: !env NAME` |
 | `azure/setup-helm`, `azure/setup-kubectl` | install the pinned binary in the script, or use an image that has it |
 | `google-github-actions/auth` (WIF) | an `id_tokens:` token for the pool's audience, exchanged with `gcloud iam workload-identity-pools create-cred-config` — or a key in `secrets:` |
 | `hashicorp/setup-terraform` | install Terraform in the script or use a Debian-based image with it |
@@ -131,7 +131,7 @@ deploy_staging:
 | `${{ github.repository }}` | write it literally (`acme/shop`) |
 | `${{ github.run_id }}` / `run_number` | no equivalent; use `$CI_COMMIT_SHORT_SHA` for unique names |
 | `${{ secrets.X }}` | `$X`, with `X` listed in the job's `secrets:` |
-| `${{ vars.X }}` | `$X`, with `X: !settings` under the job's `variables:` |
+| `${{ vars.X }}` | `$X`, with `X` listed in the job's `vars:` |
 | `${{ env.X }}` | `$X` |
 | `${{ inputs.x }}` | `$x` (workflow inputs keep their names) |
 | `${{ matrix.x }}` | `${{ matrix.x }}` (same syntax, load time) |

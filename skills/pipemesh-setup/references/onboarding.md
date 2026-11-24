@@ -172,7 +172,7 @@ definition lists (names are `UPPER_SNAKE_CASE`):
   available to every kind of run **except pull requests**; a PR job
   that declares it runs without it. Tick **pull request** only for
   read-only credentials (e.g. a read-only cache key).
-- `NAME: !settings` under `variables:` → plain variables.
+- `vars:` names → Settings → variables.
 - A job that declares a name that isn't set fails before its script,
   saying which.
 
@@ -433,5 +433,5 @@ existing approval silently.
 ### Editor support (optional)
 
 The schema modeline at the top of each file gives validation in any
-editor using yaml-language-server; in VS Code add `!include scalar`
-and `!ref scalar` to the `yaml.customTags` setting.
+editor using yaml-language-server; in VS Code add `!include scalar`,
+`!ref scalar` and `!env scalar` to the `yaml.customTags` setting.

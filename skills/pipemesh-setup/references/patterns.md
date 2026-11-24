@@ -481,7 +481,7 @@ jobs:
   `contents: read`); entries become `$PIPEMESH_<PATH>` variables in the
   run. `- uses: pipemesh/produce@v1` emits an image entry.
 - A `github_actions:` job can't also have `script`, `setup`, `uses`,
-  `image`, `image_from`, `services`, `runner`, `dockerd`, `secrets`,
+  `image`, `services`, `runner`, `dockerd`, `secrets`,
   `id_tokens`, `cache`, or an `oci` entry with `build:` or `verify:` —
   the Actions run is the execution. Secrets stay in GitHub.
 - The Pipemesh GitHub App needs **Actions: read and write**; an
@@ -520,7 +520,7 @@ dispatch:
         artifacts:                             # hands the revision over only when this changed
           - graph/orders
       body: !ref service
-      variables:
+      env:
         SERVICE: orders
     payments:
       job_type: pipeline
@@ -529,7 +529,7 @@ dispatch:
         artifacts:
           - graph/payments
       body: !ref service
-      variables:
+      env:
         SERVICE: payments
 
 pipemesh:
@@ -555,7 +555,7 @@ jobs:
     image: node:24-bookworm
     secrets:
       - NX_CLOUD_ACCESS_TOKEN                  # remote cache writes from the default branch only
-    variables:
+    env:
       NX_DAEMON: "false"
       NX_CLOUD_DISABLE_METRICS_COLLECTION: "true"
     script: |
@@ -643,7 +643,9 @@ build_ci:
 graph:
   job_type: build
   stage: graph
-  image_from: build_ci/ci_image              # runs in exactly that image, pinned by digest
+  consumes:
+    BUILD_IMAGE: build_ci/ci_image
+  image: !env BUILD_IMAGE              # runs in exactly that image, pinned by digest
   script: make fingerprints
 ```
 
@@ -652,7 +654,7 @@ in the default branch's image. The image still needs bash, git, curl
 and tar. An image without a Dockerfile (Jib, ko) or copied from
 upstream (`crane copy`) is an `oci` key without `build:` that the
 script pushes to `$(pipemesh place <key>)` after `pipemesh login`;
-`image_from:` runs in it the same way (artifacts-and-caching.md →
+`image: !env NAME` on what a job consumes runs in it the same way (artifacts-and-caching.md →
 Images, case 3).
 
 ## 9. Matrix: per-region lanes vs a CI-style matrix
